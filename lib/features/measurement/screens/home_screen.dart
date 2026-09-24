@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../mold_scan/screens/mold_scan_kit_screen.dart';
 import 'history_screen.dart';
 import 'piece_type_screen.dart';
 
@@ -32,6 +33,14 @@ class HomeScreen extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.history),
                 label: const Text('Histórico de medições'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const MoldScanKitScreen()),
+                ),
+                icon: const Icon(Icons.content_cut),
+                label: const Text('Digitalizar molde (corte CNC)'),
               ),
             ],
           ),
