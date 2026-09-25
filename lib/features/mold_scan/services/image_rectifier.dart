@@ -30,12 +30,15 @@ class ImageRectifier {
       for (var ox = 0; ox < outWidth; ox++) {
         final mmX = ox / pixelsPerMm;
         final srcPoint = mmToPixel.apply(Point2D(mmX, mmY));
-        final sx = srcPoint.x.round();
-        final sy = srcPoint.y.round();
-        if (sx >= 0 && sx < source.width && sy >= 0 && sy < source.height) {
-          final pixel = source.getPixel(sx, sy);
-          output.setPixelRgb(ox, oy, pixel.r, pixel.g, pixel.b);
-        }
+        // Clamp (rather than skip) out-of-bounds samples so the rectified
+        // image has no artificial black border — an unset/black edge would
+        // otherwise read as "foreground" against the board's background
+        // color and make contour extraction trace the whole board instead
+        // of the mold on it.
+        final sx = srcPoint.x.round().clamp(0, source.width - 1);
+        final sy = srcPoint.y.round().clamp(0, source.height - 1);
+        final pixel = source.getPixel(sx, sy);
+        output.setPixelRgb(ox, oy, pixel.r, pixel.g, pixel.b);
       }
     }
 

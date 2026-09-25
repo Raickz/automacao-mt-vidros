@@ -71,4 +71,37 @@ void main() {
     expect(yellow.g, 255);
     expect(yellow.b, 0);
   });
+
+  test('não cria borda preta artificial quando a foto não tem margem ao redor do quadro', () {
+    // Regression test: a source photo cropped tightly to the board (no
+    // surrounding margin) used to leave a black ring around the rectified
+    // output wherever sampling rounded slightly out of bounds, which made
+    // contour extraction trace the whole board instead of the object on it.
+    const background = 20;
+    final source = img.Image(width: 30, height: 30, numChannels: 3);
+    img.fill(source, color: img.ColorRgb8(background, 90, 200));
+
+    final corners = [
+      const Point2D(0, 0),
+      const Point2D(29, 0),
+      const Point2D(29, 29),
+      const Point2D(0, 29),
+    ];
+    final identity = Homography.fromCorrespondences(corners, corners);
+
+    final result = ImageRectifier.rectify(
+      source: source,
+      pixelToMm: identity,
+      widthMm: 30,
+      heightMm: 30,
+      pixelsPerMm: 1,
+    );
+
+    for (final xy in [
+      (0, 0), (result.width - 1, 0), (0, result.height - 1), (result.width - 1, result.height - 1),
+    ]) {
+      final pixel = result.getPixel(xy.$1, xy.$2);
+      expect(pixel.r, background, reason: 'canto (${xy.$1},${xy.$2}) não deveria estar preto');
+    }
+  });
 }
