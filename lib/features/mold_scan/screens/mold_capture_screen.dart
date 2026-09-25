@@ -2,7 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
 import '../services/contour_extractor.dart';
-import '../services/mold_scan_service.dart';
+import '../services/mold_scan_service_io.dart';
 import 'mold_result_screen.dart';
 
 class MoldCaptureScreen extends StatefulWidget {
