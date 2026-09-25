@@ -64,6 +64,7 @@ class MoldScanService {
       backgroundB: MoldBoardSpec.backgroundB,
       pixelsPerMm: _pixelsPerMm,
       colorThreshold: MoldBoardSpec.colorMatchThreshold,
+      excludedRegionsMm: [for (final c in BoardCorner.values) c.markerExclusionRectMm],
     );
 
     return PolylineSimplifier.simplify(rawContour, _simplifyToleranceMm);

@@ -1,7 +1,58 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:mt_vidros_app/features/mold_scan/services/contour_extractor.dart';
 
 void main() {
+  group('extractFromImage', () {
+    test('ignora um marcador excluído e encontra o molde de verdade', () {
+      // Regression test: without exclusion, the raster scan (top-left to
+      // bottom-right) finds the corner marker — which contrasts with the
+      // background just as much as the mold — before ever reaching the
+      // actual mold placed further into the image.
+      final image = img.Image(width: 100, height: 100, numChannels: 3);
+      img.fill(image, color: img.ColorRgb8(20, 90, 200));
+
+      // Simulated marker near the top-left corner.
+      for (var y = 0; y < 20; y++) {
+        for (var x = 0; x < 20; x++) {
+          image.setPixelRgb(x, y, 255, 255, 255);
+        }
+      }
+
+      // The real mold, elsewhere in the image.
+      for (var y = 50; y < 70; y++) {
+        for (var x = 50; x < 70; x++) {
+          image.setPixelRgb(x, y, 200, 30, 30);
+        }
+      }
+
+      final withoutExclusion = ContourExtractor.extractFromImage(
+        image: image,
+        backgroundR: 20,
+        backgroundG: 90,
+        backgroundB: 200,
+        pixelsPerMm: 1,
+      );
+      final withoutExclusionXs = withoutExclusion.map((p) => p.x);
+      // Confirms the bug scenario: it latches onto the marker (x in 0..19).
+      expect(withoutExclusionXs.reduce((a, b) => a < b ? a : b), lessThan(20));
+
+      final withExclusion = ContourExtractor.extractFromImage(
+        image: image,
+        backgroundR: 20,
+        backgroundG: 90,
+        backgroundB: 200,
+        pixelsPerMm: 1,
+        excludedRegionsMm: const [MmRect(left: 0, top: 0, right: 20, bottom: 20)],
+      );
+      final xs = withExclusion.map((p) => p.x);
+      final ys = withExclusion.map((p) => p.y);
+      expect(xs.reduce((a, b) => a < b ? a : b), greaterThanOrEqualTo(50));
+      expect(ys.reduce((a, b) => a < b ? a : b), greaterThanOrEqualTo(50));
+    });
+  });
+
+
   group('traceBoundary', () {
     bool inSquare(int x, int y) => x >= 3 && x <= 6 && y >= 3 && y <= 6;
 

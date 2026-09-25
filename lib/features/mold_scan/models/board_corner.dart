@@ -1,4 +1,5 @@
 import '../../measurement/services/homography.dart';
+import '../services/contour_extractor.dart';
 import 'mold_board_spec.dart';
 
 enum BoardCorner { topLeft, topRight, bottomRight, bottomLeft }
@@ -42,5 +43,19 @@ extension BoardCornerX on BoardCorner {
       case BoardCorner.bottomLeft:
         return Point2D(inset, MoldBoardSpec.boardHeightMm - inset);
     }
+  }
+
+  /// The area (mm) covered by this marker on the board, with a small safety
+  /// margin, used to exclude the marker from mold contour detection — it
+  /// contrasts with the background just as much as the mold does.
+  MmRect get markerExclusionRectMm {
+    final center = knownBoardPositionMm;
+    final halfSize = MoldBoardSpec.markerSizeMm / 2 + 2;
+    return MmRect(
+      left: center.x - halfSize,
+      top: center.y - halfSize,
+      right: center.x + halfSize,
+      bottom: center.y + halfSize,
+    );
   }
 }

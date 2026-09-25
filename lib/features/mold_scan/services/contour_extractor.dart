@@ -4,6 +4,15 @@ import 'package:image/image.dart' as img;
 
 import '../../measurement/services/homography.dart';
 
+class MmRect {
+  final double left;
+  final double top;
+  final double right;
+  final double bottom;
+
+  const MmRect({required this.left, required this.top, required this.right, required this.bottom});
+}
+
 class ContourExtractionException implements Exception {
   final String message;
   const ContourExtractionException(this.message);
@@ -20,6 +29,12 @@ class ContourExtractor {
   /// Extracts the outer boundary of the foreground object in [image] (the
   /// photographed mold) against a known solid background color, returning
   /// the contour as real-world millimeter points.
+  ///
+  /// [excludedRegionsMm] lets callers mask out known fixed elements of the
+  /// board (the 4 corner QR markers) so they aren't mistaken for the mold —
+  /// the markers contrast with the background just as much as the mold
+  /// does, and being near the top-left corner, the raster scan would
+  /// otherwise find one of them before ever reaching the actual mold.
   static List<Point2D> extractFromImage({
     required img.Image image,
     required int backgroundR,
@@ -27,9 +42,23 @@ class ContourExtractor {
     required int backgroundB,
     required double pixelsPerMm,
     double colorThreshold = 60,
+    List<MmRect> excludedRegionsMm = const [],
   }) {
+    bool isExcluded(int x, int y) {
+      if (excludedRegionsMm.isEmpty) return false;
+      final mmX = x / pixelsPerMm;
+      final mmY = y / pixelsPerMm;
+      for (final r in excludedRegionsMm) {
+        if (mmX >= r.left && mmX <= r.right && mmY >= r.top && mmY <= r.bottom) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     bool isForeground(int x, int y) {
       if (x < 0 || y < 0 || x >= image.width || y >= image.height) return false;
+      if (isExcluded(x, y)) return false;
       final p = image.getPixel(x, y);
       final dr = p.r - backgroundR;
       final dg = p.g - backgroundG;
