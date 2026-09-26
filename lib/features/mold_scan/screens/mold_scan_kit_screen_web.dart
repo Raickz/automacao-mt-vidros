@@ -8,6 +8,10 @@ import '../services/dxf_writer.dart';
 import '../services/mold_board_pdf_builder.dart';
 import '../services/mold_scan_service_web.dart';
 import '../services/web_download.dart';
+import '../theme/mold_scan_colors.dart';
+import '../theme/mold_scan_theme.dart';
+import '../widgets/section_card.dart';
+import '../widgets/step_nav.dart';
 
 class MoldScanKitScreen extends StatefulWidget {
   const MoldScanKitScreen({super.key});
@@ -99,97 +103,281 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     return ys.reduce((a, b) => a > b ? a : b) - ys.reduce((a, b) => a < b ? a : b);
   }
 
+  int get _currentStepIndex {
+    if (_contour != null) return 2;
+    if (_selectedBytes != null) return 1;
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final contour = _contour;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Digitalizar molde (teste web)')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+    return Theme(
+      data: MoldScanTheme.dark(),
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: MoldScanColors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.content_cut, color: MoldScanColors.accent, size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Text('MT Vidros — Digitalização de Moldes', style: TextStyle(fontSize: 16)),
+            ],
+          ),
+          bottom: MoldScanStepNav(currentIndex: _currentStepIndex),
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 880),
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                const Text(
+                  'Do molde físico ao DXF industrial',
+                  style: TextStyle(
+                    color: MoldScanColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Fotografe o molde sobre o quadro de referência, o app corrige a '
+                  'perspectiva e extrai um contorno pronto para a mesa de corte CNC.',
+                  style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 13),
+                ),
+                const SizedBox(height: 24),
+                SectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeading(
+                        icon: Icons.picture_as_pdf_outlined,
+                        title: 'Quadro de referência',
+                        subtitle: 'Imprima em tamanho real (100%) e coloque o molde em cima dele.',
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: _generatingBoard ? null : _downloadBoard,
+                        icon: const Icon(Icons.download_outlined, size: 18),
+                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar quadro de referência (PDF)'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeading(
+                        icon: Icons.cloud_upload_outlined,
+                        title: 'Upload de foto',
+                        subtitle: 'Envie a foto do quadro com o molde em cima.',
+                      ),
+                      const SizedBox(height: 16),
+                      _UploadDropzone(
+                        selectedBytes: _selectedBytes,
+                        processing: _processing,
+                        onTap: _processing ? null : _pickAndProcess,
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: MoldScanColors.danger.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: MoldScanColors.danger.withValues(alpha: 0.4)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: MoldScanColors.danger, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(_error!, style: const TextStyle(color: MoldScanColors.textPrimary)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (contour != null) ...[
+                  const SizedBox(height: 16),
+                  SectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SectionHeading(
+                          icon: Icons.auto_fix_high_outlined,
+                          title: 'Vetorização & DXF',
+                          subtitle: 'Confira o contorno detectado e exporte o arquivo de corte.',
+                        ),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            _StatChip(label: 'Pontos no contorno', value: '${contour.length}'),
+                            _StatChip(
+                              label: 'Largura aprox.',
+                              value: '${(_boundingWidthMm(contour) / 10).toStringAsFixed(1)} cm',
+                            ),
+                            _StatChip(
+                              label: 'Altura aprox.',
+                              value: '${(_boundingHeightMm(contour) / 10).toStringAsFixed(1)} cm',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Dados do projeto',
+                          style: TextStyle(color: MoldScanColors.textPrimary, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(labelText: 'Nome do projeto'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _materialController,
+                          decoration: const InputDecoration(labelText: 'Material (ex: vidro, espelho, MDF)'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _thicknessController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Espessura (mm)'),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _instructionsController,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'Instruções de corte',
+                            hintText: 'ex: cortar com fresa 6mm, atenção às quinas internas',
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          onPressed: _downloadDxf,
+                          icon: const Icon(Icons.download, size: 18),
+                          label: const Text('Baixar DXF'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UploadDropzone extends StatelessWidget {
+  final Uint8List? selectedBytes;
+  final bool processing;
+  final VoidCallback? onTap;
+
+  const _UploadDropzone({required this.selectedBytes, required this.processing, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: MoldScanColors.surfaceLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: MoldScanColors.border, width: 1.2),
+        ),
+        child: Column(
+          children: [
+            if (selectedBytes != null) ...[
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(selectedBytes!, fit: BoxFit.contain),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ] else ...[
+              const Icon(Icons.image_outlined, size: 40, color: MoldScanColors.textSecondary),
+              const SizedBox(height: 12),
+            ],
+            if (processing) ...[
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              const SizedBox(height: 12),
+              const Text('Processando...', style: TextStyle(color: MoldScanColors.textSecondary)),
+            ] else
+              FilledButton.icon(
+                onPressed: onTap,
+                icon: const Icon(Icons.upload_outlined, size: 18),
+                label: Text(selectedBytes == null ? 'Selecionar foto' : 'Selecionar outra foto'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: MoldScanColors.surfaceLight,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: MoldScanColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Text(label, style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 11)),
+          const SizedBox(height: 2),
           Text(
-            'Passo 1 — baixe o quadro de referência, imprima em tamanho real (100%) '
-            'e coloque o molde em cima dele.',
-            style: Theme.of(context).textTheme.bodyMedium,
+            value,
+            style: const TextStyle(
+              color: MoldScanColors.accent,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _generatingBoard ? null : _downloadBoard,
-            icon: const Icon(Icons.picture_as_pdf),
-            label: Text(_generatingBoard ? 'Gerando...' : 'Baixar quadro de referência (PDF)'),
-          ),
-          const Divider(height: 32),
-          Text(
-            'Passo 2 — tire uma foto do quadro com o molde em cima e envie aqui.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _processing ? null : _pickAndProcess,
-            icon: const Icon(Icons.upload),
-            label: Text(_processing ? 'Processando...' : 'Selecionar foto'),
-          ),
-          if (_selectedBytes != null) ...[
-            const SizedBox(height: 16),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240),
-              child: Image.memory(_selectedBytes!, fit: BoxFit.contain),
-            ),
-          ],
-          if (_processing) ...[
-            const SizedBox(height: 16),
-            const Center(child: CircularProgressIndicator()),
-          ],
-          if (_error != null) ...[
-            const SizedBox(height: 16),
-            Card(
-              color: const Color(0xFFFDECEA),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(_error!),
-              ),
-            ),
-          ],
-          if (contour != null) ...[
-            const Divider(height: 32),
-            Text('Passo 3 — conferir e exportar', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text('${contour.length} pontos no contorno detectado'),
-            Text('Largura aprox.: ${(_boundingWidthMm(contour) / 10).toStringAsFixed(1)} cm'),
-            Text('Altura aprox.: ${(_boundingHeightMm(contour) / 10).toStringAsFixed(1)} cm'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Nome do projeto'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _materialController,
-              decoration: const InputDecoration(labelText: 'Material (ex: vidro, espelho, MDF)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _thicknessController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Espessura (mm)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _instructionsController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Instruções de corte',
-                hintText: 'ex: cortar com fresa 6mm, atenção às quinas internas',
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: _downloadDxf,
-              icon: const Icon(Icons.download),
-              label: const Text('Baixar DXF'),
-            ),
-          ],
         ],
       ),
     );
