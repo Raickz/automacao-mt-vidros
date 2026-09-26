@@ -8,9 +8,12 @@ class MoldBoardSpec {
 
   // Sized to fit a single A4 sheet in landscape (297x210mm) with margins,
   // so no large-format printer is needed. Bigger boards (multi-sheet
-  // tiling) are a future enhancement for larger molds.
+  // tiling) are a future enhancement for larger molds. Height is kept well
+  // under the 210mm page height (minus margins and heading text) — an
+  // earlier 180mm value overflowed the printable area and got silently
+  // clipped by the PDF renderer.
   static const boardWidthMm = 270.0;
-  static const boardHeightMm = 180.0;
+  static const boardHeightMm = 150.0;
   static const markerSizeMm = 30.0;
   static const markerMarginMm = 8.0;
 

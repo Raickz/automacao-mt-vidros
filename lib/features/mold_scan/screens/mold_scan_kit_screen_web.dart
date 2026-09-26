@@ -123,16 +123,12 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
           ),
           title: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: MoldScanColors.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.content_cut, color: MoldScanColors.accent, size: 18),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.asset('assets/images/logo.png', width: 30, height: 30, fit: BoxFit.cover),
               ),
               const SizedBox(width: 10),
-              const Text('MT Vidros — Digitalização de Moldes', style: TextStyle(fontSize: 16)),
+              const Text('Marabá Temper — Digitalização de Moldes', style: TextStyle(fontSize: 16)),
             ],
           ),
           bottom: MoldScanStepNav(currentIndex: _currentStepIndex),

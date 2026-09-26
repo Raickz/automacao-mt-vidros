@@ -31,21 +31,22 @@ class MoldBoardPdfBuilder {
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4.landscape,
+        margin: pw.EdgeInsets.all(8 * PdfPageFormat.mm),
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              'MT Vidros — Quadro de referência para digitalização de molde',
-              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+              'MT Vidros - Quadro de referencia para digitalizacao de molde',
+              style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
             ),
-            pw.SizedBox(height: 4),
+            pw.SizedBox(height: 3),
             pw.Text(
-              'IMPORTANTE: imprima em tamanho real (100%), nunca "ajustar à página". '
-              'Coloque o molde sobre a área azul, dentro dos 4 marcadores, e tire uma foto '
-              'de cima com boa iluminação, sem sombras fortes.',
-              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+              'IMPORTANTE: imprima em tamanho real (100%), nunca "ajustar a pagina". '
+              'Coloque o molde sobre a area azul, dentro dos 4 marcadores, e tire uma foto '
+              'de cima com boa iluminacao, sem sombras fortes.',
+              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
             ),
-            pw.SizedBox(height: 12),
+            pw.SizedBox(height: 8),
             pw.Center(
               child: pw.Container(
                 width: boardWidthPt,
