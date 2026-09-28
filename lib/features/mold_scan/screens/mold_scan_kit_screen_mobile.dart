@@ -59,9 +59,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
-                'Os marcadores dos 4 cantos são impressos uma única vez (um por '
-                'folha A3, tamanho real) e colados no quadro fixo — não precisa '
-                'reimprimir a cada medição.',
+                'Os marcadores dos 4 cantos são impressos uma única vez (cada um em '
+                '4 folhas A4 para recortar e colar juntas, tamanho real) e fixados no '
+                'quadro — não precisa reimprimir a cada medição.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

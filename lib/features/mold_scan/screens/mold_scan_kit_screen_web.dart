@@ -162,14 +162,15 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       const SectionHeading(
                         icon: Icons.picture_as_pdf_outlined,
                         title: 'Marcadores do quadro fixo',
-                        subtitle: 'Imprima os 4 marcadores (um por folha A3, tamanho real) e cole-os nos '
-                            'cantos do quadro grande fixo da loja, nas posições indicadas em cada folha.',
+                        subtitle: 'Imprima em A4 (cada marcador vem dividido em 4 folhas para recortar '
+                            'e colar juntas, tamanho real) e cole-os nos cantos do quadro grande fixo '
+                            'da loja, nas posições indicadas em cada folha.',
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
                         onPressed: _generatingBoard ? null : _downloadBoard,
                         icon: const Icon(Icons.download_outlined, size: 18),
-                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores (PDF, 4 páginas A3)'),
+                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores (PDF, A4, 16 páginas)'),
                       ),
                     ],
                   ),

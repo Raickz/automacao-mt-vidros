@@ -48,6 +48,7 @@ dependencies:
   image: ^4.10.1
   zxing2: ^0.2.4
   image_picker: ^1.2.3
+  qr: ^3.0.2
 
 dev_dependencies:
   flutter_test:
