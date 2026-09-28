@@ -125,7 +125,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.asset('assets/images/logo.png', width: 30, height: 30, fit: BoxFit.cover),
+                child: Image.asset('assets/images/logo.png', height: 34, fit: BoxFit.contain),
               ),
               const SizedBox(width: 10),
               const Text('Marabá Temper — Digitalização de Moldes', style: TextStyle(fontSize: 16)),
@@ -149,8 +149,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Fotografe o molde sobre o quadro de referência, o app corrige a '
-                  'perspectiva e extrai um contorno pronto para a mesa de corte CNC.',
+                  'Coloque o molde sobre o quadro fixo da loja e fotografe de 2-3m de '
+                  'distância — o app corrige a perspectiva e extrai um contorno pronto '
+                  'para a mesa de corte CNC.',
                   style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 13),
                 ),
                 const SizedBox(height: 24),
@@ -160,14 +161,15 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                     children: [
                       const SectionHeading(
                         icon: Icons.picture_as_pdf_outlined,
-                        title: 'Quadro de referência',
-                        subtitle: 'Imprima em tamanho real (100%) e coloque o molde em cima dele.',
+                        title: 'Marcadores do quadro fixo',
+                        subtitle: 'Imprima os 4 marcadores (um por folha A3, tamanho real) e cole-os nos '
+                            'cantos do quadro grande fixo da loja, nas posições indicadas em cada folha.',
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
                         onPressed: _generatingBoard ? null : _downloadBoard,
                         icon: const Icon(Icons.download_outlined, size: 18),
-                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar quadro de referência (PDF)'),
+                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores (PDF, 4 páginas A3)'),
                       ),
                     ],
                   ),
@@ -180,7 +182,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       const SectionHeading(
                         icon: Icons.cloud_upload_outlined,
                         title: 'Upload de foto',
-                        subtitle: 'Envie a foto do quadro com o molde em cima.',
+                        subtitle: 'Coloque o molde sobre o quadro fixo e envie a foto (tirada a 2-3m de '
+                            'distância, com o quadro inteiro visível).',
                       ),
                       const SizedBox(height: 16),
                       _UploadDropzone(

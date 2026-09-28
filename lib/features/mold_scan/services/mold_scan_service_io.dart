@@ -19,7 +19,13 @@ class MoldScanException implements Exception {
 }
 
 class MoldScanService {
-  static const _pixelsPerMm = 3.0;
+  // At the board's real scale (2.5m x 1.5m), the old 3px/mm would produce a
+  // ~7500x4500 rectified image (~34 million pixels) — far too slow/memory
+  // heavy for the pixel-by-pixel rectification loop. 1px/mm keeps it at a
+  // manageable ~2500x1500 while still giving ~1mm contour resolution, which
+  // is plenty for CNC glass cutting. Revisit if real-world testing shows
+  // this is too slow or too coarse.
+  static const _pixelsPerMm = 1.0;
   static const _simplifyToleranceMm = 1.0;
   static const _cornerOrder = [
     BoardCorner.topLeft,
@@ -57,11 +63,18 @@ class MoldScanService {
       pixelsPerMm: _pixelsPerMm,
     );
 
+    final background = ContourExtractor.sampleBackgroundColor(
+      image: rectified,
+      pixelsPerMm: _pixelsPerMm,
+      boardWidthMm: MoldBoardSpec.boardWidthMm,
+      boardHeightMm: MoldBoardSpec.boardHeightMm,
+    );
+
     final rawContour = ContourExtractor.extractFromImage(
       image: rectified,
-      backgroundR: MoldBoardSpec.backgroundR,
-      backgroundG: MoldBoardSpec.backgroundG,
-      backgroundB: MoldBoardSpec.backgroundB,
+      backgroundR: background.$1,
+      backgroundG: background.$2,
+      backgroundB: background.$3,
       pixelsPerMm: _pixelsPerMm,
       colorThreshold: MoldBoardSpec.colorMatchThreshold,
       excludedRegionsMm: [for (final c in BoardCorner.values) c.markerExclusionRectMm],

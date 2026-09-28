@@ -67,7 +67,8 @@ void main() {
       }
 
       // 2. Run the real pipeline: rectify -> extract contour -> simplify.
-      const pixelsPerMm = 3.0;
+      // Matches the 1px/mm now used in production (see mold_scan_service_io.dart).
+      const pixelsPerMm = 1.0;
       final rectified = ImageRectifier.rectify(
         source: photo,
         pixelToMm: pixelToMm,

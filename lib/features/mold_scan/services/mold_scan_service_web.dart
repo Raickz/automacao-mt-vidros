@@ -19,7 +19,8 @@ class MoldScanException implements Exception {
 }
 
 class MoldScanService {
-  static const _pixelsPerMm = 3.0;
+  // See mold_scan_service_io.dart for why this dropped from 3 to 1 px/mm.
+  static const _pixelsPerMm = 1.0;
   static const _simplifyToleranceMm = 1.0;
   static const _cornerOrder = [
     BoardCorner.topLeft,
@@ -56,11 +57,18 @@ class MoldScanService {
       pixelsPerMm: _pixelsPerMm,
     );
 
+    final background = ContourExtractor.sampleBackgroundColor(
+      image: rectified,
+      pixelsPerMm: _pixelsPerMm,
+      boardWidthMm: MoldBoardSpec.boardWidthMm,
+      boardHeightMm: MoldBoardSpec.boardHeightMm,
+    );
+
     final rawContour = ContourExtractor.extractFromImage(
       image: rectified,
-      backgroundR: MoldBoardSpec.backgroundR,
-      backgroundG: MoldBoardSpec.backgroundG,
-      backgroundB: MoldBoardSpec.backgroundB,
+      backgroundR: background.$1,
+      backgroundG: background.$2,
+      backgroundB: background.$3,
       pixelsPerMm: _pixelsPerMm,
       colorThreshold: MoldBoardSpec.colorMatchThreshold,
       excludedRegionsMm: [for (final c in BoardCorner.values) c.markerExclusionRectMm],

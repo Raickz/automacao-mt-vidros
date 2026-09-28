@@ -26,6 +26,42 @@ class ContourExtractor {
     (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1),
   ];
 
+  /// Measures the board's actual background color directly from the photo,
+  /// instead of assuming a fixed value. A physically painted board will
+  /// never match a hardcoded RGB exactly (paint mixing, lighting, camera
+  /// white balance all shift it), so detection is calibrated per-photo.
+  ///
+  /// Samples a small patch just inside each of the 4 board corners — close
+  /// enough to the corner to sit outside both the markers' own footprint
+  /// and a centered mold, but still on the board itself.
+  static (int, int, int) sampleBackgroundColor({
+    required img.Image image,
+    required double pixelsPerMm,
+    required double boardWidthMm,
+    required double boardHeightMm,
+    double cornerInsetMm = 10,
+  }) {
+    final corners = [
+      (cornerInsetMm, cornerInsetMm),
+      (boardWidthMm - cornerInsetMm, cornerInsetMm),
+      (cornerInsetMm, boardHeightMm - cornerInsetMm),
+      (boardWidthMm - cornerInsetMm, boardHeightMm - cornerInsetMm),
+    ];
+
+    var sumR = 0, sumG = 0, sumB = 0, count = 0;
+    for (final corner in corners) {
+      final px = (corner.$1 * pixelsPerMm).round().clamp(0, image.width - 1);
+      final py = (corner.$2 * pixelsPerMm).round().clamp(0, image.height - 1);
+      final pixel = image.getPixel(px, py);
+      sumR += pixel.r.toInt();
+      sumG += pixel.g.toInt();
+      sumB += pixel.b.toInt();
+      count++;
+    }
+
+    return (sumR ~/ count, sumG ~/ count, sumB ~/ count);
+  }
+
   /// Extracts the outer boundary of the foreground object in [image] (the
   /// photographed mold) against a known solid background color, returning
   /// the contour as real-world millimeter points.

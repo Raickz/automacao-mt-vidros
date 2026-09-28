@@ -48,9 +48,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
           Text(
             'Use esta ferramenta quando um cliente trouxer um molde físico '
             '(papelão, MDF, formato irregular) para enviar direto para a mesa '
-            'de corte. Imprima o quadro de referência, coloque o molde em cima '
-            'dele e tire uma foto — o app digitaliza o contorno automaticamente '
-            'e gera um DXF pronto para o corte.',
+            'de corte. Coloque o molde sobre o quadro fixo grande da loja, tire '
+            'uma foto de 2-3m de distância — o app digitaliza o contorno '
+            'automaticamente e gera um DXF pronto para o corte.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
@@ -59,8 +59,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Text(
-                'Imprima em tamanho real (100%), nunca "ajustar à página". '
-                'Use boa iluminação e evite sombras fortes sobre o quadro.',
+                'Os marcadores dos 4 cantos são impressos uma única vez (um por '
+                'folha A3, tamanho real) e colados no quadro fixo — não precisa '
+                'reimprimir a cada medição.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
@@ -69,13 +70,13 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
           FilledButton.icon(
             onPressed: _generating ? null : _generateAndShare,
             icon: const Icon(Icons.picture_as_pdf),
-            label: Text(_generating ? 'Gerando...' : 'Gerar e compartilhar quadro de referência'),
+            label: Text(_generating ? 'Gerando...' : 'Gerar e compartilhar marcadores (PDF)'),
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _continueToCapture,
             icon: const Icon(Icons.camera_alt),
-            label: const Text('Já imprimi o quadro — continuar'),
+            label: const Text('Marcadores já fixados — continuar'),
           ),
         ],
       ),

@@ -52,10 +52,16 @@ extension BoardCornerX on BoardCorner {
   /// The padding is generous (not just a couple mm) because the detected
   /// marker "center" is biased: QR position detectors (zxing2 included)
   /// report the centroid of the finder patterns, not the true geometric
-  /// center of the printed square, and that bias measured ~3mm in testing.
+  /// center of the printed square, and that bias measured ~3mm on a 30mm
+  /// marker in testing (~10% of marker size). Padding scales with marker
+  /// size for that reason, floored at 8mm so small markers keep the
+  /// originally-validated margin. This hasn't been field-tested at the
+  /// large-board scale yet — if a real 2m+ mold ends up touching this
+  /// zone near the corners, the percentage can be tuned down.
   MmRect get markerExclusionRectMm {
     final center = knownBoardPositionMm;
-    final halfSize = MoldBoardSpec.markerSizeMm / 2 + 8;
+    final padding = (MoldBoardSpec.markerSizeMm * 0.1).clamp(8, double.infinity);
+    final halfSize = MoldBoardSpec.markerSizeMm / 2 + padding;
     return MmRect(
       left: center.x - halfSize,
       top: center.y - halfSize,
