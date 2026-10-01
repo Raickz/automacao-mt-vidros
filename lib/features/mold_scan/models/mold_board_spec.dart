@@ -14,14 +14,13 @@ class MoldBoardSpec {
   static const backgroundB = 200;
 
   // A fixed board built at the store, sized for glass/mirror pieces up to
-  // ~2m. Markers are 260mm so they stay readable in a photo taken from
-  // 2-3m away (rule of thumb: max reliable reading distance ≈ 10x marker
-  // size) — a 260mm marker doesn't fit a single sheet, so
-  // MoldBoardPdfBuilder splits each one into a 2x2 grid of A4 pages to
-  // print, cut and tape together (the target printer only supports A4).
+  // ~2m. Markers are 180mm so each one fits on a single A4 sheet with no
+  // cutting or taping (the target printer only supports A4). Rule of thumb:
+  // max reliable reading distance ≈ 10x marker size, so photos should be
+  // taken from no more than ~1.8m away.
   static const boardWidthMm = 2500.0;
   static const boardHeightMm = 1500.0;
-  static const markerSizeMm = 260.0;
+  static const markerSizeMm = 180.0;
   static const markerMarginMm = 60.0;
 
   static const colorMatchThreshold = 60.0;

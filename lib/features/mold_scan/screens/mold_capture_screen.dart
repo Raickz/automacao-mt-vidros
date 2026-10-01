@@ -103,7 +103,7 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
-                          'Fique a 2-3m do quadro, enquadre ele inteiro (com o molde em cima) e tire a foto.',
+                          'Fique a até 1,8m do quadro, enquadre ele inteiro (com o molde em cima) e tire a foto.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.white),
                         ),

@@ -149,7 +149,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Coloque o molde sobre o quadro fixo da loja e fotografe de 2-3m de '
+                  'Coloque o molde sobre o quadro fixo da loja e fotografe de até 1,8m de '
                   'distância — o app corrige a perspectiva e extrai um contorno pronto '
                   'para a mesa de corte CNC.',
                   style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 13),
@@ -162,15 +162,15 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       const SectionHeading(
                         icon: Icons.picture_as_pdf_outlined,
                         title: 'Marcadores do quadro fixo',
-                        subtitle: 'Imprima em A4 (cada marcador vem dividido em 4 folhas para recortar '
-                            'e colar juntas, tamanho real) e cole-os nos cantos do quadro grande fixo '
-                            'da loja, nas posições indicadas em cada folha.',
+                        subtitle: 'Imprima em A4, uma folha por marcador (tamanho real, sem recorte) '
+                            'e cole-os nos cantos do quadro grande fixo da loja, nas posições '
+                            'indicadas em cada folha.',
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
                         onPressed: _generatingBoard ? null : _downloadBoard,
                         icon: const Icon(Icons.download_outlined, size: 18),
-                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores (PDF, A4, 16 páginas)'),
+                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores (PDF, A4, 4 páginas)'),
                       ),
                     ],
                   ),
@@ -183,8 +183,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       const SectionHeading(
                         icon: Icons.cloud_upload_outlined,
                         title: 'Upload de foto',
-                        subtitle: 'Coloque o molde sobre o quadro fixo e envie a foto (tirada a 2-3m de '
-                            'distância, com o quadro inteiro visível).',
+                        subtitle: 'Coloque o molde sobre o quadro fixo e envie a foto (tirada a até 1,8m '
+                            'de distância, com o quadro inteiro visível).',
                       ),
                       const SizedBox(height: 16),
                       _UploadDropzone(
