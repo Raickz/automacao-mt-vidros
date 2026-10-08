@@ -59,6 +59,13 @@ class Homography {
     return Point2D(v.x / v.z, v.y / v.z);
   }
 
+  /// Row-major 3x3 coefficients, for hot loops that can't afford the
+  /// per-point object allocations of [apply].
+  List<double> get rowMajor {
+    final s = _matrix.storage;
+    return [s[0], s[3], s[6], s[1], s[4], s[7], s[2], s[5], s[8]];
+  }
+
   Homography invert() {
     final inv = Matrix3.copy(_matrix)..invert();
     return Homography._(inv);

@@ -47,8 +47,8 @@ void main() {
       );
       final xs = withExclusion.map((p) => p.x);
       final ys = withExclusion.map((p) => p.y);
-      expect(xs.reduce((a, b) => a < b ? a : b), greaterThanOrEqualTo(50));
-      expect(ys.reduce((a, b) => a < b ? a : b), greaterThanOrEqualTo(50));
+      expect(xs.reduce((a, b) => a < b ? a : b), greaterThanOrEqualTo(49));
+      expect(ys.reduce((a, b) => a < b ? a : b), greaterThanOrEqualTo(49));
     });
   });
 

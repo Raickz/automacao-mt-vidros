@@ -25,6 +25,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   bool _processing = false;
   bool _generatingBoard = false;
   String? _error;
+  String _stage = 'Processando...';
+  List<String> _warnings = const [];
   List<Point2D>? _contour;
 
   final _nameController = TextEditingController(text: 'Molde 01');
@@ -52,30 +54,49 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   }
 
   Future<void> _pickAndProcess() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    // Resizing in the browser (canvas) bakes in the photo's rotation and
+    // spares the pure-Dart decoder from 12-50MP originals.
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 3200,
+      maxHeight: 3200,
+      imageQuality: 95,
+    );
     if (picked == null) return;
 
     final bytes = await picked.readAsBytes();
     setState(() {
       _selectedBytes = bytes;
       _processing = true;
+      _stage = 'Processando...';
       _error = null;
+      _warnings = const [];
       _contour = null;
     });
+    // Let the spinner paint before the (UI-thread) processing starts.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
 
     try {
-      final contour = await MoldScanService().scanContourFromBytes(bytes);
+      final result = await MoldScanService().scanContourFromBytes(
+        bytes,
+        onStage: (stage) async {
+          if (mounted) setState(() => _stage = stage);
+        },
+      );
       if (!mounted) return;
       setState(() {
-        _contour = contour;
+        _contour = result.contourMm;
+        _warnings = result.warnings;
         _processing = false;
       });
     } on MoldScanException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _processing = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Não foi possível processar a imagem. Tente outra foto.';
         _processing = false;
@@ -149,9 +170,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Coloque o molde sobre o quadro fixo da loja e fotografe de até 1,8m de '
-                  'distância — o app corrige a perspectiva e extrai um contorno pronto '
-                  'para a mesa de corte CNC.',
+                  'Coloque o molde sobre o quadro fixo da loja e fotografe com o quadro inteiro '
+                  'visível (cerca de 2 a 3 m de distância) — o app corrige a perspectiva e '
+                  'extrai um contorno pronto para a mesa de corte CNC.',
                   style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 13),
                 ),
                 const SizedBox(height: 24),
@@ -162,9 +183,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       const SectionHeading(
                         icon: Icons.picture_as_pdf_outlined,
                         title: 'Marcadores do quadro fixo',
-                        subtitle: 'Imprima em A4, uma folha por marcador (tamanho real, sem recorte) '
-                            'e cole-os nos cantos do quadro grande fixo da loja, nas posições '
-                            'indicadas em cada folha.',
+                        subtitle: 'Imprima em A4 (tamanho real, 100%), uma folha por marcador. Recorte na linha '
+                            'tracejada, sem deixar sobra de papel, e cole nos cantos do quadro grande '
+                            'fixo da loja, nas posições indicadas em cada folha.',
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
@@ -183,13 +204,15 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       const SectionHeading(
                         icon: Icons.cloud_upload_outlined,
                         title: 'Upload de foto',
-                        subtitle: 'Coloque o molde sobre o quadro fixo e envie a foto (tirada a até 1,8m '
-                            'de distância, com o quadro inteiro visível).',
+                        subtitle: 'Coloque o molde sobre o quadro fixo e envie a foto original da câmera '
+                            '(não a versão do WhatsApp), com os 4 marcadores inteiros e nítidos. '
+                            'Distância de 2 a 3 m, de frente para o quadro.',
                       ),
                       const SizedBox(height: 16),
                       _UploadDropzone(
                         selectedBytes: _selectedBytes,
                         processing: _processing,
+                        stage: _stage,
                         onTap: _processing ? null : _pickAndProcess,
                       ),
                       if (_error != null) ...[
@@ -227,6 +250,37 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                           title: 'Vetorização & DXF',
                           subtitle: 'Confira o contorno detectado e exporte o arquivo de corte.',
                         ),
+                        if (_warnings.isNotEmpty) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: MoldScanColors.warning.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: MoldScanColors.warning.withValues(alpha: 0.5)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                for (final w in _warnings)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Icon(Icons.warning_amber_rounded, color: MoldScanColors.warning, size: 18),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(w, style: const TextStyle(color: MoldScanColors.textPrimary)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         Wrap(
                           spacing: 12,
@@ -296,9 +350,15 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
 class _UploadDropzone extends StatelessWidget {
   final Uint8List? selectedBytes;
   final bool processing;
+  final String stage;
   final VoidCallback? onTap;
 
-  const _UploadDropzone({required this.selectedBytes, required this.processing, required this.onTap});
+  const _UploadDropzone({
+    required this.selectedBytes,
+    required this.processing,
+    required this.stage,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -335,7 +395,7 @@ class _UploadDropzone extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2.5),
               ),
               const SizedBox(height: 12),
-              const Text('Processando...', style: TextStyle(color: MoldScanColors.textSecondary)),
+              Text(stage, style: const TextStyle(color: MoldScanColors.textSecondary)),
             ] else
               FilledButton.icon(
                 onPressed: onTap,

@@ -95,8 +95,11 @@ void main() {
       final recoveredWidth = xs.reduce((a, b) => a > b ? a : b) - xs.reduce((a, b) => a < b ? a : b);
       final recoveredHeight = ys.reduce((a, b) => a > b ? a : b) - ys.reduce((a, b) => a < b ? a : b);
 
-      expect(recoveredWidth, closeTo(moldWidthMm, 2.0));
-      expect(recoveredHeight, closeTo(moldHeightMm, 2.0));
+      // This synthetic photo is only 800px wide for a 2.5m board (~3.3mm per
+      // pixel), so edges are blurred by one source pixel; mold_scan_e2e_test
+      // checks accuracy at a realistic photo resolution.
+      expect(recoveredWidth, closeTo(moldWidthMm, 6.0));
+      expect(recoveredHeight, closeTo(moldHeightMm, 6.0));
 
       // 4. The simplified contour should still produce a valid DXF file.
       final dxf = DxfWriter.write(simplified);

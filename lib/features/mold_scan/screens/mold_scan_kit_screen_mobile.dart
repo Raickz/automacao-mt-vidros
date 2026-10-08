@@ -49,7 +49,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             'Use esta ferramenta quando um cliente trouxer um molde físico '
             '(papelão, MDF, formato irregular) para enviar direto para a mesa '
             'de corte. Coloque o molde sobre o quadro fixo grande da loja, tire '
-            'uma foto de até 1,8m de distância — o app digitaliza o contorno '
+            'uma foto de 2-3m de distância, com o quadro inteiro visível — o app digitaliza o contorno '
             'automaticamente e gera um DXF pronto para o corte.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -60,8 +60,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
               padding: const EdgeInsets.all(12),
               child: Text(
                 'Os marcadores dos 4 cantos são impressos uma única vez (cada um em uma '
-                'única folha A4, sem recorte) e fixados no quadro — não precisa '
-                'reimprimir a cada medição.',
+                'única folha A4, recortada na linha tracejada) e fixados no quadro — não '
+                'precisa reimprimir a cada medição.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

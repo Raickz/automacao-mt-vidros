@@ -39,7 +39,12 @@ void main() {
   test('escala 2x reduz a imagem retificada corretamente', () {
     final source = img.Image(width: 40, height: 40, numChannels: 3);
     img.fill(source, color: img.ColorRgb8(0, 0, 0));
-    source.setPixelRgb(20, 20, 255, 255, 0);
+    // 4x4 block (not a single pixel) so bilinear sampling can't dilute it.
+    for (var y = 18; y < 22; y++) {
+      for (var x = 18; x < 22; x++) {
+        source.setPixelRgb(x, y, 255, 255, 0);
+      }
+    }
 
     // pixel space is 2x the mm space: mm (10,10) -> pixel (20,20)
     final srcCorners = [

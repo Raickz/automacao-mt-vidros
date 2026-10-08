@@ -10,8 +10,9 @@ import '../services/dxf_writer.dart';
 
 class MoldResultScreen extends StatefulWidget {
   final List<Point2D> contourMm;
+  final List<String> warnings;
 
-  const MoldResultScreen({super.key, required this.contourMm});
+  const MoldResultScreen({super.key, required this.contourMm, this.warnings = const []});
 
   @override
   State<MoldResultScreen> createState() => _MoldResultScreenState();
@@ -76,6 +77,25 @@ class _MoldResultScreenState extends State<MoldResultScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (widget.warnings.isNotEmpty) ...[
+            Card(
+              color: const Color(0xFFFFF3CD),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final w in widget.warnings)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text('⚠ $w', style: Theme.of(context).textTheme.bodySmall),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),

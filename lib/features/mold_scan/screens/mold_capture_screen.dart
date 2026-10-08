@@ -1,7 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
-import '../services/contour_extractor.dart';
 import '../services/mold_scan_service_io.dart';
 import 'mold_result_screen.dart';
 
@@ -30,7 +29,7 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
       (c) => c.lensDirection == CameraLensDirection.back,
       orElse: () => cameras.first,
     );
-    final controller = CameraController(backCamera, ResolutionPreset.veryHigh, enableAudio: false);
+    final controller = CameraController(backCamera, ResolutionPreset.ultraHigh, enableAudio: false);
     await controller.initialize();
     if (!mounted) return;
     setState(() => _controller = controller);
@@ -53,23 +52,22 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
 
     try {
       final photo = await controller.takePicture();
-      final contour = await MoldScanService().scanContourFromPhoto(photo.path);
+      final result = await MoldScanService().scanContourFromPhoto(photo.path);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => MoldResultScreen(contourMm: contour)),
+        MaterialPageRoute(
+          builder: (_) => MoldResultScreen(contourMm: result.contourMm, warnings: result.warnings),
+        ),
       );
     } on MoldScanException catch (e) {
-      setState(() {
-        _error = e.message;
-        _processing = false;
-      });
-    } on ContourExtractionException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _processing = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = 'Não foi possível processar a foto. Tente novamente.';
         _processing = false;
@@ -103,7 +101,7 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
-                          'Fique a até 1,8m do quadro, enquadre ele inteiro (com o molde em cima) e tire a foto.',
+                          'Fique a 2-3m, de frente para o quadro, com os 4 marcadores inteiros na foto (e o molde em cima), e tire a foto.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.white),
                         ),

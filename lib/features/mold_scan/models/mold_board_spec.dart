@@ -22,6 +22,12 @@ class MoldBoardSpec {
   static const boardHeightMm = 1500.0;
   static const markerSizeMm = 180.0;
   static const markerMarginMm = 60.0;
+  // White paper left around each QR so it keeps a clean quiet zone. The
+  // printed sheet is cut along this line, so the paper's own edge sits
+  // (markerMarginMm - markerQuietZoneMm) from the board edge.
+  static const markerQuietZoneMm = 10.0;
 
-  static const colorMatchThreshold = 60.0;
+  // Minimum color difference (ignoring brightness) for a pixel to count as
+  // the mold rather than the board — see ContourExtractor.extract.
+  static const colorMatchThreshold = 50.0;
 }
