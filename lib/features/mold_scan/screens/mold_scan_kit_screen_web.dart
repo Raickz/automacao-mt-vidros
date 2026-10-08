@@ -181,6 +181,46 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SectionHeading(
+                        icon: Icons.route_outlined,
+                        title: 'Como funciona',
+                        subtitle: 'Do molde do cliente ao arquivo de corte, em 4 etapas.',
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: const [
+                          _HowItWorksStep(
+                            number: 1,
+                            title: 'Preparação',
+                            text: 'Quadro azul fixo de 2,5 × 1,5 m com 4 marcadores QR nos cantos. Feito uma única vez.',
+                          ),
+                          _HowItWorksStep(
+                            number: 2,
+                            title: 'Atendimento',
+                            text: 'Coloque o molde sobre o quadro e fotografe de 2 a 3 m, com os 4 marcadores na foto.',
+                          ),
+                          _HowItWorksStep(
+                            number: 3,
+                            title: 'Processamento',
+                            text: 'O sistema corrige a perspectiva e extrai o contorno do molde em milímetros.',
+                          ),
+                          _HowItWorksStep(
+                            number: 4,
+                            title: 'Resultado',
+                            text: 'Confira as medidas e baixe o DXF pronto para a mesa de corte CNC.',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeading(
                         icon: Icons.picture_as_pdf_outlined,
                         title: 'Marcadores do quadro fixo',
                         subtitle: 'Imprima em A4 (tamanho real, 100%), uma folha por marcador. Recorte na linha '
@@ -438,6 +478,47 @@ class _StatChip extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HowItWorksStep extends StatelessWidget {
+  final int number;
+  final String title;
+  final String text;
+
+  const _HowItWorksStep({required this.number, required this.title, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 190,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: MoldScanColors.surfaceLight,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: MoldScanColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: MoldScanColors.accent,
+            child: Text(
+              '$number',
+              style: const TextStyle(color: MoldScanColors.background, fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(color: MoldScanColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(text, style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 12, height: 1.35)),
         ],
       ),
     );
