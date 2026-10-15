@@ -152,12 +152,14 @@ class ContourExtractor {
 
     final xs = <double>[], ys = <double>[];
     final cs = [<double>[], <double>[], <double>[]];
+    final strips = <List<int>>[[], [], [], []];
     final step = max(1, (3 * pixelsPerMm).round());
 
-    void sample(int x0, int x1, int y0, int y1) {
+    void sample(int strip, int x0, int x1, int y0, int y1) {
       for (var y = y0; y <= y1; y += step) {
         for (var x = x0; x <= x1; x += step) {
           final p = image.getPixel(x, y);
+          strips[strip].add(xs.length);
           xs.add(x / w);
           ys.add(y / h);
           cs[0].add(p.r.toDouble());
@@ -167,15 +169,73 @@ class ContourExtractor {
       }
     }
 
-    sample(xLo, xHi, s0y, s1y);
-    sample(xLo, xHi, e0y, e1y);
-    sample(s0x, s1x, yLo, yHi);
-    sample(e0x, e1x, yLo, yHi);
+    sample(0, xLo, xHi, s0y, s1y);
+    sample(1, xLo, xHi, e0y, e1y);
+    sample(2, s0x, s1x, yLo, yHi);
+    sample(3, e0x, e1x, yLo, yHi);
 
     if (xs.length < 20) {
       throw const ContourExtractionException('Imagem pequena demais para estimar a cor do quadro.');
     }
-    return BackgroundModel.fit(xs, ys, cs, w, h);
+
+    // A mold (or the table it leans on) can cover most of one strip. Let the
+    // strips vote: a strip whose color direction differs from the others'
+    // is dropped, so it can't drag the background model toward the mold.
+    final kept = _consistentSamples(strips, cs);
+    return BackgroundModel.fit(
+      [for (final i in kept) xs[i]],
+      [for (final i in kept) ys[i]],
+      [
+        for (var ch = 0; ch < 3; ch++) [for (final i in kept) cs[ch][i]],
+      ],
+      w,
+      h,
+    );
+  }
+
+  static double _median(List<double> v) {
+    final sorted = [...v]..sort();
+    return sorted[sorted.length ~/ 2];
+  }
+
+  /// Indexes of the samples from strips that agree with the majority on the
+  /// board's color *direction* (so a lighting gradient doesn't count as
+  /// disagreement, but wood against a gray wall or blue paint does).
+  static List<int> _consistentSamples(List<List<int>> strips, List<List<double>> cs) {
+    final all = [for (final s in strips) ...s];
+    final med = <List<double>>[];
+    final norms = <double>[];
+    for (final idx in strips) {
+      if (idx.length < 10) {
+        med.add([0, 0, 0]);
+        norms.add(0);
+        continue;
+      }
+      final m = [for (var ch = 0; ch < 3; ch++) _median([for (final i in idx) cs[ch][i]])];
+      med.add(m);
+      norms.add(sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]));
+    }
+    final valid = [
+      for (var s = 0; s < strips.length; s++)
+        if (norms[s] >= 1) s,
+    ];
+    if (valid.length < 3) return all;
+
+    List<double> unit(int s) => [for (final v in med[s]) v / norms[s]];
+    final refUnit = [for (var ch = 0; ch < 3; ch++) _median([for (final s in valid) unit(s)[ch]])];
+    final refNorm = _median([for (final s in valid) norms[s]]);
+
+    final inliers = <int>[];
+    for (final s in valid) {
+      final u = unit(s);
+      final d = sqrt(
+        pow(u[0] - refUnit[0], 2) + pow(u[1] - refUnit[1], 2) + pow(u[2] - refUnit[2], 2),
+      );
+      final ratio = norms[s] / refNorm;
+      if (d <= 0.07 && ratio >= 0.55 && ratio <= 1.8) inliers.add(s);
+    }
+    final use = inliers.length >= 2 ? inliers : valid;
+    return [for (final s in use) ...strips[s]];
   }
 
   /// Extracts the outer boundary of the largest foreground object in

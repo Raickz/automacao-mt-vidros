@@ -203,4 +203,40 @@ void main() {
     final bytes = portraitScene.renderJpg(doorOnGrayWall);
     await expectLater(runPipeline(bytes), throwsA(isA<MoldScanException>()));
   }, timeout: timeout);
+
+  // Second real-world test: the same door lying down, covering most of the
+  // bottom strip of the board that the background color is sampled from.
+  const landscape = BoardGeometry(widthMm: 2000, heightMm: 1500);
+  final landscapeScene = SyntheticScene(
+    width: 2400,
+    height: 1800,
+    geometry: landscape,
+    boardPixelCorners: const [
+      Point2D(150, 170),
+      Point2D(2250, 150),
+      Point2D(2270, 1650),
+      Point2D(130, 1630),
+    ],
+  );
+  const doorLying = [Point2D(310, 1000), Point2D(1720, 1000), Point2D(1720, 1440), Point2D(310, 1440)];
+
+  test('porta deitada cobrindo a faixa de baixo do quadro (cor do fundo não pode contaminar)', () async {
+    final bytes = landscapeScene.renderJpg(
+      const SceneConfig(
+        moldPolygonMm: doorLying,
+        boardColor: (115, 115, 108),
+        moldColor: (190, 150, 110),
+        noiseSigma: 3,
+        lightGradient: 0.25,
+        grooves: [
+          (Point2D(360, 1050), Point2D(1670, 1050), 6.0),
+          (Point2D(1670, 1050), Point2D(1670, 1390), 6.0),
+          (Point2D(1670, 1390), Point2D(360, 1390), 6.0),
+          (Point2D(360, 1390), Point2D(360, 1050), 6.0),
+        ],
+        tableBandMm: 30,
+      ),
+    );
+    expectMold(await runPipeline(bytes, board: landscape), doorLying, tol: 3.5);
+  }, timeout: timeout);
 }
