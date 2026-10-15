@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:mt_vidros_app/features/measurement/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_corner.dart';
+import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/mold_board_spec.dart';
 import 'package:qr/qr.dart';
 
@@ -21,6 +22,10 @@ class SceneConfig {
   final List<(Point2D, double)> specks;
   final Map<BoardCorner, String> payloadOverride;
   final double blurRadius;
+  final List<(Point2D, Point2D, double)> grooves;
+  final (int, int, int) grooveColor;
+  final double tableBandMm;
+  final (int, int, int) tableColor;
 
   const SceneConfig({
     required this.moldPolygonMm,
@@ -34,6 +39,10 @@ class SceneConfig {
     this.specks = const [],
     this.payloadOverride = const {},
     this.blurRadius = 1,
+    this.grooves = const [],
+    this.grooveColor = (75, 55, 40),
+    this.tableBandMm = 0,
+    this.tableColor = (62, 36, 22),
   });
 }
 
@@ -45,18 +54,24 @@ class SyntheticScene {
   final int width;
   final int height;
   final List<Point2D> boardPixelCorners;
+  final BoardGeometry geometry;
 
   late final Homography _mmToPx;
   late final Homography pixelToMm;
   Float64List? _mmX;
   Float64List? _mmY;
 
-  SyntheticScene({required this.width, required this.height, required this.boardPixelCorners}) {
+  SyntheticScene({
+    required this.width,
+    required this.height,
+    required this.boardPixelCorners,
+    this.geometry = BoardGeometry.standard,
+  }) {
     final mm = [
       const Point2D(0, 0),
-      const Point2D(MoldBoardSpec.boardWidthMm, 0),
-      const Point2D(MoldBoardSpec.boardWidthMm, MoldBoardSpec.boardHeightMm),
-      const Point2D(0, MoldBoardSpec.boardHeightMm),
+      Point2D(geometry.widthMm, 0),
+      Point2D(geometry.widthMm, geometry.heightMm),
+      Point2D(0, geometry.heightMm),
     ];
     _mmToPx = Homography.fromCorrespondences(mm, boardPixelCorners);
     pixelToMm = _mmToPx.invert();
@@ -79,6 +94,15 @@ class SyntheticScene {
     _mmY = ys;
   }
 
+  static double _distToSegment(double px, double py, Point2D a, Point2D b) {
+    final dx = b.x - a.x, dy = b.y - a.y;
+    final len2 = dx * dx + dy * dy;
+    var t = len2 == 0 ? 0.0 : ((px - a.x) * dx + (py - a.y) * dy) / len2;
+    t = t.clamp(0.0, 1.0);
+    final cx = a.x + t * dx, cy = a.y + t * dy;
+    return sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy));
+  }
+
   static bool _inPolygon(double x, double y, List<Point2D> poly) {
     var inside = false;
     for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -99,8 +123,8 @@ class SyntheticScene {
     final mmX = _mmX!, mmY = _mmY!;
     final out = img.Image(width: width, height: height, numChannels: 3);
 
-    const boardW = MoldBoardSpec.boardWidthMm;
-    const boardH = MoldBoardSpec.boardHeightMm;
+    final boardW = geometry.widthMm;
+    final boardH = geometry.heightMm;
     const size = MoldBoardSpec.markerSizeMm;
     const quiet = 10.0;
 
@@ -141,7 +165,7 @@ class SyntheticScene {
           }
 
           for (final c in BoardCorner.values) {
-            final center = c.knownBoardPositionMm;
+            final center = c.knownPositionMm(geometry);
             final lx = mx - (center.x - size / 2);
             final ly = my - (center.y - size / 2);
 
@@ -167,6 +191,20 @@ class SyntheticScene {
             r = cfg.moldColor.$1.toDouble();
             g = cfg.moldColor.$2.toDouble();
             b = cfg.moldColor.$3.toDouble();
+          }
+
+          for (final gr in cfg.grooves) {
+            if (_distToSegment(mx, my, gr.$1, gr.$2) <= gr.$3 / 2 && _inPolygon(mx, my, poly)) {
+              r = cfg.grooveColor.$1.toDouble();
+              g = cfg.grooveColor.$2.toDouble();
+              b = cfg.grooveColor.$3.toDouble();
+            }
+          }
+
+          if (cfg.tableBandMm > 0 && my > boardH - cfg.tableBandMm) {
+            r = cfg.tableColor.$1.toDouble();
+            g = cfg.tableColor.$2.toDouble();
+            b = cfg.tableColor.$3.toDouble();
           }
 
           for (final s in cfg.specks) {

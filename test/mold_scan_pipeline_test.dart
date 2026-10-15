@@ -83,7 +83,6 @@ void main() {
         backgroundG: MoldBoardSpec.backgroundG,
         backgroundB: MoldBoardSpec.backgroundB,
         pixelsPerMm: pixelsPerMm,
-        colorThreshold: MoldBoardSpec.colorMatchThreshold,
       );
 
       final simplified = PolylineSimplifier.simplify(rawContour, 1.0);

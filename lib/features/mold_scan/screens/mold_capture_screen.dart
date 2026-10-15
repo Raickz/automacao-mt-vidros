@@ -57,7 +57,11 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => MoldResultScreen(contourMm: result.contourMm, warnings: result.warnings),
+          builder: (_) => MoldResultScreen(
+            contourMm: result.contourMm,
+            warnings: result.warnings,
+            previewPng: result.previewPng,
+          ),
         ),
       );
     } on MoldScanException catch (e) {

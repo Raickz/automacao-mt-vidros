@@ -4,11 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mt_vidros_app/features/measurement/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_corner.dart';
+import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/mold_scan_pipeline.dart';
 
 import 'support/synthetic_scene.dart';
 
-Future<List<Point2D>> runPipeline(Uint8List bytes) async => (await MoldScanPipeline.run(bytes)).contourMm;
+Future<List<Point2D>> runPipeline(Uint8List bytes, {BoardGeometry board = BoardGeometry.standard}) async =>
+    (await MoldScanPipeline.run(bytes, board: board)).contourMm;
 
 final scene = SyntheticScene(
   width: 2400,
@@ -157,6 +159,48 @@ void main() {
       ],
     );
     final bytes = cut.renderJpg(const SceneConfig(moldPolygonMm: trapezoid));
+    await expectLater(runPipeline(bytes), throwsA(isA<MoldScanException>()));
+  }, timeout: timeout);
+
+  // Reproduces the first real-world test: an improvised portrait board
+  // (1.5 x 1.96 m) on a gray wall, a light wooden door with a groove between
+  // frame and panel, and a table touching the bottom edge of the board.
+  const portrait = BoardGeometry(widthMm: 1500, heightMm: 1960);
+  final portraitScene = SyntheticScene(
+    width: 1800,
+    height: 2400,
+    geometry: portrait,
+    boardPixelCorners: const [
+      Point2D(150, 130),
+      Point2D(1650, 120),
+      Point2D(1670, 2290),
+      Point2D(130, 2300),
+    ],
+  );
+  const door = [Point2D(530, 330), Point2D(970, 330), Point2D(970, 1760), Point2D(530, 1760)];
+  const doorGrooves = [
+    (Point2D(585, 385), Point2D(915, 385), 6.0),
+    (Point2D(915, 385), Point2D(915, 1705), 6.0),
+    (Point2D(915, 1705), Point2D(585, 1705), 6.0),
+    (Point2D(585, 1705), Point2D(585, 385), 6.0),
+  ];
+  const doorOnGrayWall = SceneConfig(
+    moldPolygonMm: door,
+    boardColor: (109, 103, 94),
+    moldColor: (190, 150, 110),
+    noiseSigma: 3,
+    lightGradient: 0.2,
+    grooves: doorGrooves,
+    tableBandMm: 40,
+  );
+
+  test('quadro vertical 150 x 196 cm, parede cinza, porta de madeira com sulco e mesa na borda', () async {
+    final bytes = portraitScene.renderJpg(doorOnGrayWall);
+    expectMold(await runPipeline(bytes, board: portrait), door, tol: 3);
+  }, timeout: timeout);
+
+  test('medidas do quadro erradas (informou 250 x 150 num quadro vertical): erro claro', () async {
+    final bytes = portraitScene.renderJpg(doorOnGrayWall);
     await expectLater(runPipeline(bytes), throwsA(isA<MoldScanException>()));
   }, timeout: timeout);
 }

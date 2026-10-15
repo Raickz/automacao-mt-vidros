@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,8 +12,14 @@ import '../services/dxf_writer.dart';
 class MoldResultScreen extends StatefulWidget {
   final List<Point2D> contourMm;
   final List<String> warnings;
+  final Uint8List? previewPng;
 
-  const MoldResultScreen({super.key, required this.contourMm, this.warnings = const []});
+  const MoldResultScreen({
+    super.key,
+    required this.contourMm,
+    this.warnings = const [],
+    this.previewPng,
+  });
 
   @override
   State<MoldResultScreen> createState() => _MoldResultScreenState();
@@ -96,6 +103,16 @@ class _MoldResultScreenState extends State<MoldResultScreen> {
             ),
             const SizedBox(height: 12),
           ],
+          if (widget.previewPng != null) ...[
+            Image.memory(widget.previewPng!, fit: BoxFit.contain),
+            const SizedBox(height: 6),
+            Text(
+              'A linha rosa é o contorno medido. Ela deve acompanhar a borda externa do molde; '
+              'se não acompanhar, refaça a foto.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+          ],
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -105,8 +122,8 @@ class _MoldResultScreenState extends State<MoldResultScreen> {
                   Text('Contorno detectado', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   Text('${widget.contourMm.length} pontos no contorno'),
-                  Text('Largura aprox.: ${(_boundingWidthMm / 10).toStringAsFixed(1)} cm'),
-                  Text('Altura aprox.: ${(_boundingHeightMm / 10).toStringAsFixed(1)} cm'),
+                  Text('Largura (borda a borda): ${(_boundingWidthMm / 10).toStringAsFixed(1)} cm'),
+                  Text('Altura (borda a borda): ${(_boundingHeightMm / 10).toStringAsFixed(1)} cm'),
                 ],
               ),
             ),

@@ -13,8 +13,8 @@ void main() {
       img.fill(image, color: img.ColorRgb8(20, 90, 200));
 
       // Simulated marker near the top-left corner.
-      for (var y = 0; y < 20; y++) {
-        for (var x = 0; x < 20; x++) {
+      for (var y = 0; y < 30; y++) {
+        for (var x = 0; x < 30; x++) {
           image.setPixelRgb(x, y, 255, 255, 255);
         }
       }
@@ -34,8 +34,8 @@ void main() {
         pixelsPerMm: 1,
       );
       final withoutExclusionXs = withoutExclusion.map((p) => p.x);
-      // Confirms the bug scenario: it latches onto the marker (x in 0..19).
-      expect(withoutExclusionXs.reduce((a, b) => a < b ? a : b), lessThan(20));
+      // Confirms the bug scenario: the marker is the biggest object (x in 0..29).
+      expect(withoutExclusionXs.reduce((a, b) => a < b ? a : b), lessThan(30));
 
       final withExclusion = ContourExtractor.extractFromImage(
         image: image,
@@ -43,7 +43,7 @@ void main() {
         backgroundG: 90,
         backgroundB: 200,
         pixelsPerMm: 1,
-        excludedRegionsMm: const [MmRect(left: 0, top: 0, right: 20, bottom: 20)],
+        excludedRegionsMm: const [MmRect(left: 0, top: 0, right: 30, bottom: 30)],
       );
       final xs = withExclusion.map((p) => p.x);
       final ys = withExclusion.map((p) => p.y);

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../measurement/services/homography.dart';
+import '../models/board_geometry.dart';
 import '../services/dxf_writer.dart';
 import '../services/mold_board_pdf_builder.dart';
 import '../services/mold_scan_service_web.dart';
@@ -28,11 +29,14 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   String _stage = 'Processando...';
   List<String> _warnings = const [];
   List<Point2D>? _contour;
+  Uint8List? _preview;
 
   final _nameController = TextEditingController(text: 'Molde 01');
   final _materialController = TextEditingController();
   final _thicknessController = TextEditingController(text: '4');
   final _instructionsController = TextEditingController();
+  final _boardWidthController = TextEditingController(text: '250');
+  final _boardHeightController = TextEditingController(text: '150');
 
   @override
   void dispose() {
@@ -40,6 +44,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     _materialController.dispose();
     _thicknessController.dispose();
     _instructionsController.dispose();
+    _boardWidthController.dispose();
+    _boardHeightController.dispose();
     super.dispose();
   }
 
@@ -53,7 +59,21 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     }
   }
 
+  BoardGeometry? _readBoard() {
+    double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+    final w = parse(_boardWidthController.text);
+    final h = parse(_boardHeightController.text);
+    final board = (w == null || h == null) ? null : BoardGeometry(widthMm: w * 10, heightMm: h * 10);
+    if (board == null || !board.isUsable) {
+      setState(() => _error = 'Informe a largura e a altura reais do quadro, em cm (entre 60 e 800).');
+      return null;
+    }
+    return board;
+  }
+
   Future<void> _pickAndProcess() async {
+    final board = _readBoard();
+    if (board == null) return;
     // Resizing in the browser (canvas) bakes in the photo's rotation and
     // spares the pure-Dart decoder from 12-50MP originals.
     final picked = await ImagePicker().pickImage(
@@ -72,6 +92,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
       _error = null;
       _warnings = const [];
       _contour = null;
+      _preview = null;
     });
     // Let the spinner paint before the (UI-thread) processing starts.
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -79,6 +100,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     try {
       final result = await MoldScanService().scanContourFromBytes(
         bytes,
+        board: board,
         onStage: (stage) async {
           if (mounted) setState(() => _stage = stage);
         },
@@ -87,6 +109,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
       setState(() {
         _contour = result.contourMm;
         _warnings = result.warnings;
+        _preview = result.previewPng;
         _processing = false;
       });
     } on MoldScanException catch (e) {
@@ -249,6 +272,33 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             'Distância de 2 a 3 m, de frente para o quadro.',
                       ),
                       const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _boardWidthController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Largura do quadro (cm)'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: _boardHeightController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(labelText: 'Altura do quadro (cm)'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Medidas reais do quadro como ele aparece na foto (largura = lado horizontal), com os '
+                        'papéis colados a 50 mm das bordas. Quadro da loja: 250 × 150 cm. Se estiver errado, '
+                        'todas as medidas saem erradas.',
+                        style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 12),
+                      ),
+                      const SizedBox(height: 16),
                       _UploadDropzone(
                         selectedBytes: _selectedBytes,
                         processing: _processing,
@@ -321,18 +371,31 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             ),
                           ),
                         ],
+                        if (_preview != null) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(_preview!, fit: BoxFit.contain),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'A linha rosa é o contorno medido, sobre a foto já endireitada (vista de cima). '
+                            'Ela deve acompanhar a borda externa do molde, de ponta a ponta. Se não acompanhar, '
+                            'as medidas abaixo não valem — refaça a foto.',
+                            style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 12),
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         Wrap(
                           spacing: 12,
                           runSpacing: 12,
                           children: [
-                            _StatChip(label: 'Pontos no contorno', value: '${contour.length}'),
+                            _StatChip(label: 'Vértices do contorno', value: '${contour.length}'),
                             _StatChip(
-                              label: 'Largura aprox.',
+                              label: 'Largura (borda a borda)',
                               value: '${(_boundingWidthMm(contour) / 10).toStringAsFixed(1)} cm',
                             ),
                             _StatChip(
-                              label: 'Altura aprox.',
+                              label: 'Altura (borda a borda)',
                               value: '${(_boundingHeightMm(contour) / 10).toStringAsFixed(1)} cm',
                             ),
                           ],

@@ -1,5 +1,6 @@
 import '../../measurement/services/homography.dart';
 import '../services/contour_extractor.dart';
+import 'board_geometry.dart';
 import 'mold_board_spec.dart';
 
 enum BoardCorner { topLeft, topRight, bottomRight, bottomLeft }
@@ -29,19 +30,19 @@ extension BoardCornerX on BoardCorner {
     return null;
   }
 
-  /// This corner's known real-world position (mm) on the board, matching
-  /// the layout drawn in MoldBoardPdfBuilder.
-  Point2D get knownBoardPositionMm {
-    final inset = MoldBoardSpec.markerMarginMm + MoldBoardSpec.markerSizeMm / 2;
+  /// This corner's known real-world position (mm) on a board of the given
+  /// size, matching the layout drawn in MoldBoardPdfBuilder.
+  Point2D knownPositionMm([BoardGeometry board = BoardGeometry.standard]) {
+    const inset = BoardGeometry.markerInsetMm;
     switch (this) {
       case BoardCorner.topLeft:
-        return Point2D(inset, inset);
+        return const Point2D(inset, inset);
       case BoardCorner.topRight:
-        return Point2D(MoldBoardSpec.boardWidthMm - inset, inset);
+        return Point2D(board.widthMm - inset, inset);
       case BoardCorner.bottomRight:
-        return Point2D(MoldBoardSpec.boardWidthMm - inset, MoldBoardSpec.boardHeightMm - inset);
+        return Point2D(board.widthMm - inset, board.heightMm - inset);
       case BoardCorner.bottomLeft:
-        return Point2D(inset, MoldBoardSpec.boardHeightMm - inset);
+        return Point2D(inset, board.heightMm - inset);
     }
   }
 
@@ -52,8 +53,8 @@ extension BoardCornerX on BoardCorner {
   /// Covers the QR plus its white paper margin (markerQuietZoneMm) plus
   /// slack for cutting/positioning error, so leftover paper can't be mistaken
   /// for the mold. Padding scales with marker size, floored at 8mm.
-  MmRect get markerExclusionRectMm {
-    final center = knownBoardPositionMm;
+  MmRect markerExclusionRectMm([BoardGeometry board = BoardGeometry.standard]) {
+    final center = knownPositionMm(board);
     final padding = (MoldBoardSpec.markerSizeMm * 0.15).clamp(8, double.infinity);
     final halfSize = MoldBoardSpec.markerSizeMm / 2 + padding;
     return MmRect(

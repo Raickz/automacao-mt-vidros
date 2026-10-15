@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 
 import '../../measurement/services/homography.dart';
+import '../models/mold_board_spec.dart';
 
 class MmRect {
   final double left;
@@ -30,47 +31,138 @@ class ContourResult {
   const ContourResult({required this.contourMm, required this.areaPx, required this.touchesIgnoredBorder});
 }
 
+/// Expected board color at each image pixel: one plane (a*x + b*y + c) per
+/// RGB channel, so a lighting gradient or color cast across the board is
+/// part of the model instead of being mistaken for an object.
+class BackgroundModel {
+  final List<double> _a;
+  final List<double> _b;
+  final List<double> _c;
+  final int _w;
+  final int _h;
+
+  const BackgroundModel._(this._a, this._b, this._c, this._w, this._h);
+
+  factory BackgroundModel.constant(int r, int g, int b) =>
+      BackgroundModel._([0, 0, 0], [0, 0, 0], [r.toDouble(), g.toDouble(), b.toDouble()], 1, 1);
+
+  (double, double, double) colorAt(int x, int y) {
+    final u = x / _w, v = y / _h;
+    return (
+      _a[0] * u + _b[0] * v + _c[0],
+      _a[1] * u + _b[1] * v + _c[1],
+      _a[2] * u + _b[2] * v + _c[2],
+    );
+  }
+
+  /// Color at the image center, for diagnostics.
+  (double, double, double) get center => colorAt(_w ~/ 2, _h ~/ 2);
+
+  /// Robust least-squares plane fit per channel: fit, drop samples whose
+  /// residual is far above the median, refit.
+  factory BackgroundModel.fit(List<double> xs, List<double> ys, List<List<double>> cs, int w, int h) {
+    var keep = List<bool>.filled(xs.length, true);
+    final a = [0.0, 0.0, 0.0], b = [0.0, 0.0, 0.0], c = [0.0, 0.0, 0.0];
+
+    for (var pass = 0; pass < 4; pass++) {
+      for (var ch = 0; ch < 3; ch++) {
+        final p = _fitPlane(xs, ys, cs[ch], keep);
+        a[ch] = p[0];
+        b[ch] = p[1];
+        c[ch] = p[2];
+      }
+      final res = <double>[];
+      final all = List<double>.filled(xs.length, 0);
+      for (var i = 0; i < xs.length; i++) {
+        var r2 = 0.0;
+        for (var ch = 0; ch < 3; ch++) {
+          final d = cs[ch][i] - (a[ch] * xs[i] + b[ch] * ys[i] + c[ch]);
+          r2 += d * d;
+        }
+        all[i] = sqrt(r2);
+        if (keep[i]) res.add(all[i]);
+      }
+      res.sort();
+      final median = res[res.length ~/ 2];
+      final limit = max(3 * median, 12.0);
+      keep = [for (final r in all) r <= limit];
+      if (keep.where((k) => k).length < 20) break;
+    }
+    return BackgroundModel._(a, b, c, w, h);
+  }
+
+  static List<double> _fitPlane(List<double> xs, List<double> ys, List<double> zs, List<bool> keep) {
+    double sxx = 0, sxy = 0, sx = 0, syy = 0, sy = 0, sn = 0, sxz = 0, syz = 0, sz = 0;
+    for (var i = 0; i < xs.length; i++) {
+      if (!keep[i]) continue;
+      final x = xs[i], y = ys[i], z = zs[i];
+      sxx += x * x;
+      sxy += x * y;
+      sx += x;
+      syy += y * y;
+      sy += y;
+      sn += 1;
+      sxz += x * z;
+      syz += y * z;
+      sz += z;
+    }
+    // Solve [[sxx sxy sx],[sxy syy sy],[sx sy sn]] * [a b c] = [sxz syz sz].
+    final det = sxx * (syy * sn - sy * sy) - sxy * (sxy * sn - sy * sx) + sx * (sxy * sy - syy * sx);
+    if (det.abs() < 1e-9) return [0, 0, sz / max(sn, 1)];
+    final a = (sxz * (syy * sn - sy * sy) - sxy * (syz * sn - sy * sz) + sx * (syz * sy - syy * sz)) / det;
+    final b = (sxx * (syz * sn - sy * sz) - sxz * (sxy * sn - sy * sx) + sx * (sxy * sz - syz * sx)) / det;
+    final c = (sxx * (syy * sz - syz * sy) - sxy * (sxy * sz - syz * sx) + sxz * (sxy * sy - syy * sx)) / det;
+    return [a, b, c];
+  }
+}
+
 class ContourExtractor {
   static const _clockwiseOffsets = [
     (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1),
   ];
 
-  /// Measures the board's actual background color directly from the photo,
-  /// instead of assuming a fixed value (paint mixing, lighting and camera
-  /// white balance always shift it).
+  /// Models the board's background directly from the photo, as a color that
+  /// can drift linearly across the board (uneven lighting, white-balance
+  /// cast), instead of assuming one fixed value: paint never matches a
+  /// hardcoded RGB, and a 2.5m board is never lit evenly.
   ///
   /// Samples 4 strips along the board's edges, away from the corner markers
-  /// and from where a mold normally sits, and takes the per-channel median
-  /// so a stray object, dust or glare in a strip can't skew the result.
-  static (int, int, int) estimateBackgroundColor({
+  /// and from where a mold normally sits, then fits one plane per color
+  /// channel, discarding outliers (a stray object, dust or glare in a strip
+  /// can't skew the fit).
+  static BackgroundModel estimateBackground({
     required img.Image image,
     required double pixelsPerMm,
     required double boardWidthMm,
     required double boardHeightMm,
     double stripStartMm = 55,
     double stripEndMm = 120,
-    double cornerClearMm = 400,
   }) {
     int px(double mm, int max) => (mm * pixelsPerMm).round().clamp(0, max - 1);
 
     final w = image.width, h = image.height;
-    final xLo = px(cornerClearMm, w), xHi = px(boardWidthMm - cornerClearMm, w);
-    final yLo = px(cornerClearMm, h), yHi = px(boardHeightMm - cornerClearMm, h);
+    final clearX = min(400.0, boardWidthMm * 0.22);
+    final clearY = min(400.0, boardHeightMm * 0.22);
+    final xLo = px(clearX, w), xHi = px(boardWidthMm - clearX, w);
+    final yLo = px(clearY, h), yHi = px(boardHeightMm - clearY, h);
     final s0x = px(stripStartMm, w), s1x = px(stripEndMm, w);
     final s0y = px(stripStartMm, h), s1y = px(stripEndMm, h);
     final e0x = px(boardWidthMm - stripEndMm, w), e1x = px(boardWidthMm - stripStartMm, w);
     final e0y = px(boardHeightMm - stripEndMm, h), e1y = px(boardHeightMm - stripStartMm, h);
 
-    final rs = <int>[], gs = <int>[], bs = <int>[];
+    final xs = <double>[], ys = <double>[];
+    final cs = [<double>[], <double>[], <double>[]];
     final step = max(1, (3 * pixelsPerMm).round());
 
     void sample(int x0, int x1, int y0, int y1) {
       for (var y = y0; y <= y1; y += step) {
         for (var x = x0; x <= x1; x += step) {
           final p = image.getPixel(x, y);
-          rs.add(p.r.toInt());
-          gs.add(p.g.toInt());
-          bs.add(p.b.toInt());
+          xs.add(x / w);
+          ys.add(y / h);
+          cs[0].add(p.r.toDouble());
+          cs[1].add(p.g.toDouble());
+          cs[2].add(p.b.toDouble());
         }
       }
     }
@@ -80,62 +172,54 @@ class ContourExtractor {
     sample(s0x, s1x, yLo, yHi);
     sample(e0x, e1x, yLo, yHi);
 
-    if (rs.isEmpty) {
+    if (xs.length < 20) {
       throw const ContourExtractionException('Imagem pequena demais para estimar a cor do quadro.');
     }
-
-    int median(List<int> v) {
-      v.sort();
-      return v[v.length ~/ 2];
-    }
-
-    return (median(rs), median(gs), median(bs));
+    return BackgroundModel.fit(xs, ys, cs, w, h);
   }
 
   /// Extracts the outer boundary of the largest foreground object in
-  /// [image] (the photographed mold) and returns it in millimeters.
+  /// [image] (the photographed mold) against a constant background color,
+  /// returning the contour in millimeters.
   static List<Point2D> extractFromImage({
     required img.Image image,
     required int backgroundR,
     required int backgroundG,
     required int backgroundB,
     required double pixelsPerMm,
-    double colorThreshold = 50,
-    double minBrightnessRatio = 0.35,
     List<MmRect> excludedRegionsMm = const [],
     double ignoreBorderMm = 0,
   }) {
     return extract(
       image: image,
-      backgroundR: backgroundR,
-      backgroundG: backgroundG,
-      backgroundB: backgroundB,
+      background: BackgroundModel.constant(backgroundR, backgroundG, backgroundB),
       pixelsPerMm: pixelsPerMm,
-      colorThreshold: colorThreshold,
-      minBrightnessRatio: minBrightnessRatio,
       excludedRegionsMm: excludedRegionsMm,
       ignoreBorderMm: ignoreBorderMm,
     ).contourMm;
   }
 
-  /// A pixel is foreground when its *color* (not its brightness) differs
-  /// from the background's, or when it is much darker than the background.
-  /// Comparing the component of the pixel's color that is orthogonal to the
-  /// background color's direction makes the test immune to uneven lighting
-  /// across a 2.5m board and to soft shadows (both just scale brightness),
-  /// which a plain RGB distance would read as "object".
+  /// A pixel is foreground when its *color* differs from the expected
+  /// background color (ignoring brightness), or when it is much brighter or
+  /// much darker than the background at that spot. Ignoring moderate
+  /// brightness changes keeps shadows from being read as "object"; flagging
+  /// strong ones is what lets a light piece stand out against a gray wall,
+  /// where colors alone barely differ.
   ///
-  /// Only the largest connected foreground blob is kept, so dust, glare,
-  /// leftover paper or seams can't be mistaken for the mold just because
-  /// they come first in a raster scan.
+  /// Gaps up to ~2x [closingRadiusMm] are closed, so a relief or groove does
+  /// not split one piece into several blobs, and only the largest connected
+  /// blob is kept, so dust, glare, leftover paper or seams can't be mistaken
+  /// for the mold just because they come first in a raster scan.
   static ContourResult extract({
     required img.Image image,
-    required int backgroundR,
-    required int backgroundG,
-    required int backgroundB,
+    required BackgroundModel background,
     required double pixelsPerMm,
-    double colorThreshold = 50,
-    double minBrightnessRatio = 0.35,
+    double chromaThresholdRatio = MoldBoardSpec.chromaThresholdRatio,
+    double minBrightnessRatio = MoldBoardSpec.brightnessMinRatio,
+    double maxBrightnessRatio = MoldBoardSpec.brightnessMaxRatio,
+    double edgeContrastRatio = MoldBoardSpec.edgeContrastRatio,
+    double closingRadiusMm = 8,
+    double sliverRadiusMm = 6,
     List<MmRect> excludedRegionsMm = const [],
     double ignoreBorderMm = 0,
     int minAreaPx = 16,
@@ -143,32 +227,43 @@ class ContourExtractor {
     final w = image.width, h = image.height;
     final n = w * h;
     final bytes = image.getBytes(order: img.ChannelOrder.rgb);
-    final mask = Uint8List(n);
+    var mask = Uint8List(n);
+    // Euclidean distance from the expected background color, kept per pixel
+    // to place the final edge (see "stage 2" below).
+    final dist = Uint16List(n);
 
-    final bb = (backgroundR * backgroundR + backgroundG * backgroundG + backgroundB * backgroundB).toDouble();
-    final t2 = colorThreshold * colorThreshold;
+    const minChroma2 = 22.0 * 22.0;
     var o = 0;
-    for (var i = 0; i < n; i++, o += 3) {
-      final r = bytes[o], g = bytes[o + 1], b = bytes[o + 2];
-      if (bb < 1) {
-        if (r * r + g * g + b * b > t2) mask[i] = 1;
-        continue;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++, o += 3) {
+        final bg = background.colorAt(x, y);
+        final bgR = bg.$1, bgG = bg.$2, bgB = bg.$3;
+        final bb = bgR * bgR + bgG * bgG + bgB * bgB;
+        final r = bytes[o], g = bytes[o + 1], b = bytes[o + 2];
+        final i = y * w + x;
+        final dr = r - bgR, dg = g - bgG, db = b - bgB;
+        dist[i] = sqrt(dr * dr + dg * dg + db * db).round();
+        if (bb < 1) {
+          if (r * r + g * g + b * b > minChroma2) mask[i] = 1;
+          continue;
+        }
+        final k = (r * bgR + g * bgG + b * bgB) / bb;
+        if (k < minBrightnessRatio || k > maxBrightnessRatio) {
+          mask[i] = 1;
+          continue;
+        }
+        final cr = r - k * bgR;
+        final cg = g - k * bgG;
+        final cb = b - k * bgB;
+        final t2 = max(chromaThresholdRatio * chromaThresholdRatio * bb, minChroma2);
+        if (cr * cr + cg * cg + cb * cb > t2) mask[i] = 1;
       }
-      final k = (r * backgroundR + g * backgroundG + b * backgroundB) / bb;
-      if (k < minBrightnessRatio) {
-        mask[i] = 1;
-        continue;
-      }
-      final cr = r - k * backgroundR;
-      final cg = g - k * backgroundG;
-      final cb = b - k * backgroundB;
-      if (cr * cr + cg * cg + cb * cb > t2) mask[i] = 1;
     }
 
     void clear(int x0, int x1, int y0, int y1) {
+      if (x1 < 0 || y1 < 0 || x0 > w - 1 || y0 > h - 1) return;
       final xa = x0.clamp(0, w - 1), xb = x1.clamp(0, w - 1);
       final ya = y0.clamp(0, h - 1), yb = y1.clamp(0, h - 1);
-      if (x1 < 0 || y1 < 0 || x0 > w - 1 || y0 > h - 1) return;
       for (var y = ya; y <= yb; y++) {
         mask.fillRange(y * w + xa, y * w + xb + 1, 0);
       }
@@ -188,6 +283,53 @@ class ContourExtractor {
         (r.top * pixelsPerMm).floor(),
         (r.bottom * pixelsPerMm).ceil(),
       );
+    }
+
+    // Stage 2 — edge placement. The sensitive thresholds above are good at
+    // *finding* a low-contrast piece, but they put the edge too far out
+    // (blurred edge pixels already pass them), which would oversize every
+    // piece by a millimeter or two. Re-place the edge at a fixed share of the
+    // piece's own contrast with the board (its median distance from the
+    // background), which is where a blurred step edge really is.
+    final hist = Int32List(1024);
+    var counted = 0;
+    for (var i = 0; i < n; i++) {
+      if (mask[i] != 0) {
+        hist[min(dist[i], 1023)]++;
+        counted++;
+      }
+    }
+    if (counted > 0) {
+      var acc = 0, median = 0;
+      for (var v = 0; v < hist.length; v++) {
+        acc += hist[v];
+        if (acc * 2 >= counted) {
+          median = v;
+          break;
+        }
+      }
+      final minDist = max(edgeContrastRatio * median, 22.0);
+      for (var i = 0; i < n; i++) {
+        if (mask[i] != 0 && dist[i] < minDist) mask[i] = 0;
+      }
+    }
+
+    final closeR = (closingRadiusMm * pixelsPerMm).round();
+    if (closeR > 0) {
+      mask = _boxMorph(_boxMorph(mask, w, h, closeR, erode: false), w, h, closeR, erode: true);
+    }
+
+    // Drop thin slivers (a table edge, a seam, a shadow line touching the
+    // mold): keep only pixels within a few millimeters of the shape that
+    // survives an opening. Reconstructing like this, instead of just
+    // opening, keeps sharp corners of the mold intact.
+    final sliverR = (sliverRadiusMm * pixelsPerMm).round();
+    if (sliverR > 0) {
+      final opened = _boxMorph(_boxMorph(mask, w, h, sliverR, erode: true), w, h, sliverR, erode: false);
+      final near = _boxMorph(opened, w, h, sliverR, erode: false);
+      for (var i = 0; i < n; i++) {
+        if (mask[i] != 0 && near[i] == 0) mask[i] = 0;
+      }
     }
 
     final labels = Int32List(n);
@@ -250,6 +392,36 @@ class ContourExtractor {
       areaPx: bestCount,
       touchesIgnoredBorder: touches,
     );
+  }
+
+  /// Square dilation (or erosion) of a 0/1 mask with a (2r+1) window, done as
+  /// two 1-D passes using running sums. Pixels outside the image count as 0.
+  static Uint8List _boxMorph(Uint8List src, int w, int h, int r, {required bool erode}) {
+    final window = 2 * r + 1;
+    final tmp = Uint8List(w * h);
+    final out = Uint8List(w * h);
+    final prefix = Int32List(max(w, h) + 1);
+
+    for (var y = 0; y < h; y++) {
+      final row = y * w;
+      for (var x = 0; x < w; x++) {
+        prefix[x + 1] = prefix[x] + src[row + x];
+      }
+      for (var x = 0; x < w; x++) {
+        final sum = prefix[min(x + r, w - 1) + 1] - prefix[max(x - r, 0)];
+        tmp[row + x] = erode ? (sum == window ? 1 : 0) : (sum > 0 ? 1 : 0);
+      }
+    }
+    for (var x = 0; x < w; x++) {
+      for (var y = 0; y < h; y++) {
+        prefix[y + 1] = prefix[y] + tmp[y * w + x];
+      }
+      for (var y = 0; y < h; y++) {
+        final sum = prefix[min(y + r, h - 1) + 1] - prefix[max(y - r, 0)];
+        out[y * w + x] = erode ? (sum == window ? 1 : 0) : (sum > 0 ? 1 : 0);
+      }
+    }
+    return out;
   }
 
   /// Boundary pixels are the object's outermost pixels, so their centers sit

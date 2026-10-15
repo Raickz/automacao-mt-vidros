@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../models/board_geometry.dart';
 import 'mold_scan_pipeline.dart';
 
 export 'mold_scan_pipeline.dart' show MoldScanException, MoldScanResult;
@@ -9,8 +10,9 @@ class MoldScanService {
   /// lets the screen show progress between the heavy steps.
   Future<MoldScanResult> scanContourFromBytes(
     Uint8List bytes, {
+    BoardGeometry board = BoardGeometry.standard,
     Future<void> Function(String stage)? onStage,
   }) {
-    return MoldScanPipeline.run(bytes, onStage: onStage);
+    return MoldScanPipeline.run(bytes, board: board, onStage: onStage);
   }
 }

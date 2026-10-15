@@ -51,8 +51,7 @@ class MoldBoardPdfBuilder {
               ),
               pw.SizedBox(height: 3),
               pw.Text(
-                'Posicao no quadro (${MoldBoardSpec.boardWidthMm.toStringAsFixed(0)}x'
-                '${MoldBoardSpec.boardHeightMm.toStringAsFixed(0)}mm): cole o papel recortado com a '
+                'Posicao no quadro: cole o papel recortado com a '
                 'borda do papel a ${paperEdgeMm.toStringAsFixed(0)}mm ${_horizontalEdge(corner)} e '
                 'a ${paperEdgeMm.toStringAsFixed(0)}mm ${_verticalEdge(corner)}.',
                 style: const pw.TextStyle(fontSize: 9),

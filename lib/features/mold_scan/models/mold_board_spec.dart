@@ -27,7 +27,14 @@ class MoldBoardSpec {
   // (markerMarginMm - markerQuietZoneMm) from the board edge.
   static const markerQuietZoneMm = 10.0;
 
-  // Minimum color difference (ignoring brightness) for a pixel to count as
-  // the mold rather than the board — see ContourExtractor.extract.
-  static const colorMatchThreshold = 50.0;
+  // Foreground detection (see ContourExtractor.extract). A pixel is "the
+  // mold" when its color differs from the board's by more than this share of
+  // the board color's own magnitude, ignoring brightness...
+  static const chromaThresholdRatio = 0.12;
+  // ...or when it is much brighter / much darker than the board *at that
+  // spot* (shadows only darken moderately, so they stay background).
+  static const brightnessMaxRatio = 1.22;
+  static const brightnessMinRatio = 0.35;
+  // Where the piece's edge is placed, as a share of its own contrast.
+  static const edgeContrastRatio = 0.35;
 }
