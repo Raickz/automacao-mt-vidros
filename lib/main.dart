@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'core/theme/app_theme.dart';
-import 'features/measurement/screens/home_screen.dart';
+import 'features/mold_scan/screens/mold_scan_kit_screen.dart';
+import 'features/mold_scan/theme/mold_scan_theme.dart';
 
 void main() {
   runApp(const MtVidrosApp());
@@ -15,8 +15,8 @@ class MtVidrosApp extends StatelessWidget {
     return MaterialApp(
       title: 'MT Vidros',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      home: const HomeScreen(),
+      theme: MoldScanTheme.dark(),
+      home: const MoldScanKitScreen(),
     );
   }
 }

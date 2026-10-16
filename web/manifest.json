@@ -1,12 +1,12 @@
 {
-    "name": "mt_vidros_app",
-    "short_name": "mt_vidros_app",
+    "name": "Marabá Temper — Digitalização de Moldes",
+    "short_name": "MT Vidros",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#012B40",
+    "theme_color": "#012B40",
+    "description": "Digitalize o molde do cliente e gere o arquivo DXF para a mesa de corte CNC.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

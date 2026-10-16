@@ -6,7 +6,7 @@ import '../models/piece_type.dart';
 import '../services/measurement_export_service.dart';
 import '../services/measurement_storage_service.dart';
 import '../widgets/measurement_metric_tile.dart';
-import 'home_screen.dart';
+import '../../mold_scan/screens/mold_scan_kit_screen.dart';
 
 class MeasurementResultScreen extends StatefulWidget {
   final MeasurementResult result;
@@ -97,7 +97,7 @@ class _MeasurementResultScreenState extends State<MeasurementResultScreen> {
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                MaterialPageRoute(builder: (_) => const MoldScanKitScreen()),
                 (route) => false,
               ),
               child: const Text('Voltar ao início'),

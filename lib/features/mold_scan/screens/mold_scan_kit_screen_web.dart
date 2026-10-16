@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -11,8 +12,7 @@ import '../services/mold_scan_service_web.dart';
 import '../services/web_download.dart';
 import '../theme/mold_scan_colors.dart';
 import '../theme/mold_scan_theme.dart';
-import '../widgets/section_card.dart';
-import '../widgets/step_nav.dart';
+import '../widgets/mold_ui.dart';
 
 class MoldScanKitScreen extends StatefulWidget {
   const MoldScanKitScreen({super.key});
@@ -25,6 +25,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   Uint8List? _selectedBytes;
   bool _processing = false;
   bool _generatingBoard = false;
+  bool _settingsOpen = false;
   String? _error;
   String _stage = 'Processando...';
   List<String> _warnings = const [];
@@ -49,31 +50,42 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     super.dispose();
   }
 
-  Future<void> _downloadBoard() async {
-    setState(() => _generatingBoard = true);
-    try {
-      final bytes = await MoldBoardPdfBuilder.buildBytes();
-      downloadBytes(bytes, 'quadro_referencia_molde.pdf', 'application/pdf');
-    } finally {
-      if (mounted) setState(() => _generatingBoard = false);
-    }
+  double? _parseCm(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+
+  double get _boardAspect {
+    final w = _parseCm(_boardWidthController.text), h = _parseCm(_boardHeightController.text);
+    if (w == null || h == null || w <= 0 || h <= 0) return 250 / 150;
+    return (w / h).clamp(0.6, 2.4);
   }
 
   BoardGeometry? _readBoard() {
-    double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
-    final w = parse(_boardWidthController.text);
-    final h = parse(_boardHeightController.text);
+    final w = _parseCm(_boardWidthController.text);
+    final h = _parseCm(_boardHeightController.text);
     final board = (w == null || h == null) ? null : BoardGeometry(widthMm: w * 10, heightMm: h * 10);
     if (board == null || !board.isUsable) {
-      setState(() => _error = 'Informe a largura e a altura reais do quadro, em cm (entre 60 e 800).');
+      setState(() {
+        _error = 'Informe a largura e a altura reais do quadro, em cm (entre 60 e 800).';
+        _settingsOpen = true;
+      });
       return null;
     }
     return board;
   }
 
+  Future<void> _downloadBoard() async {
+    setState(() => _generatingBoard = true);
+    try {
+      final bytes = await MoldBoardPdfBuilder.buildBytes();
+      downloadBytes(bytes, 'marcadores_quadro_referencia.pdf', 'application/pdf');
+    } finally {
+      if (mounted) setState(() => _generatingBoard = false);
+    }
+  }
+
   Future<void> _pickAndProcess() async {
     final board = _readBoard();
     if (board == null) return;
+
     // Resizing in the browser (canvas) bakes in the photo's rotation and
     // spares the pure-Dart decoder from 12-50MP originals.
     final picked = await ImagePicker().pickImage(
@@ -94,7 +106,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
       _contour = null;
       _preview = null;
     });
-    // Let the spinner paint before the (UI-thread) processing starts.
+    // Let the progress bar paint before the (UI-thread) processing starts.
     await Future<void>.delayed(const Duration(milliseconds: 80));
 
     try {
@@ -137,451 +149,377 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     downloadBytes(dxf.codeUnits, '$safeName.dxf', 'application/dxf');
   }
 
-  double _boundingWidthMm(List<Point2D> contour) {
-    final xs = contour.map((p) => p.x);
-    return xs.reduce((a, b) => a > b ? a : b) - xs.reduce((a, b) => a < b ? a : b);
+  double _extent(List<Point2D> pts, double Function(Point2D) f) {
+    final v = pts.map(f);
+    return v.reduce(max) - v.reduce(min);
   }
 
-  double _boundingHeightMm(List<Point2D> contour) {
-    final ys = contour.map((p) => p.y);
-    return ys.reduce((a, b) => a > b ? a : b) - ys.reduce((a, b) => a < b ? a : b);
-  }
-
-  int get _currentStepIndex {
-    if (_contour != null) return 2;
-    if (_selectedBytes != null) return 1;
-    return 0;
-  }
+  String _cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
 
   @override
   Widget build(BuildContext context) {
-    final contour = _contour;
-
     return Theme(
       data: MoldScanTheme.dark(),
       child: Scaffold(
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          title: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Image.asset('assets/images/logo.png', height: 34, fit: BoxFit.contain),
-              ),
-              const SizedBox(width: 10),
-              const Text('Marabá Temper — Digitalização de Moldes', style: TextStyle(fontSize: 16)),
-            ],
-          ),
-          bottom: MoldScanStepNav(currentIndex: _currentStepIndex),
-        ),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 880),
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                const Text(
-                  'Do molde físico ao DXF industrial',
-                  style: TextStyle(
-                    color: MoldScanColors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Coloque o molde sobre o quadro fixo da loja e fotografe com o quadro inteiro '
-                  'visível (cerca de 2 a 3 m de distância) — o app corrige a perspectiva e '
-                  'extrai um contorno pronto para a mesa de corte CNC.',
-                  style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 13),
-                ),
-                const SizedBox(height: 24),
-                SectionCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: LayoutBuilder(
+                builder: (context, c) {
+                  final wide = c.maxWidth >= 900;
+                  final pad = wide ? 32.0 : 18.0;
+                  return ListView(
+                    padding: EdgeInsets.fromLTRB(pad, 18, pad, 40),
                     children: [
-                      const SectionHeading(
-                        icon: Icons.route_outlined,
-                        title: 'Como funciona',
-                        subtitle: 'Do molde do cliente ao arquivo de corte, em 4 etapas.',
-                      ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: const [
-                          _HowItWorksStep(
-                            number: 1,
-                            title: 'Preparação',
-                            text: 'Quadro azul fixo de 2,5 × 1,5 m com 4 marcadores QR nos cantos. Feito uma única vez.',
-                          ),
-                          _HowItWorksStep(
-                            number: 2,
-                            title: 'Atendimento',
-                            text: 'Coloque o molde sobre o quadro e fotografe de 2 a 3 m, com os 4 marcadores na foto.',
-                          ),
-                          _HowItWorksStep(
-                            number: 3,
-                            title: 'Processamento',
-                            text: 'O sistema corrige a perspectiva e extrai o contorno do molde em milímetros.',
-                          ),
-                          _HowItWorksStep(
-                            number: 4,
-                            title: 'Resultado',
-                            text: 'Confira as medidas e baixe o DXF pronto para a mesa de corte CNC.',
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SectionCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SectionHeading(
-                        icon: Icons.picture_as_pdf_outlined,
-                        title: 'Marcadores do quadro fixo',
-                        subtitle: 'Imprima em A4 (tamanho real, 100%), uma folha por marcador. Recorte na linha '
-                            'tracejada, sem deixar sobra de papel, e cole nos cantos do quadro grande '
-                            'fixo da loja, nas posições indicadas em cada folha.',
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _generatingBoard ? null : _downloadBoard,
-                        icon: const Icon(Icons.download_outlined, size: 18),
-                        label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores (PDF, A4, 4 páginas)'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SectionCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SectionHeading(
-                        icon: Icons.cloud_upload_outlined,
-                        title: 'Upload de foto',
-                        subtitle: 'Coloque o molde sobre o quadro fixo e envie a foto original da câmera '
-                            '(não a versão do WhatsApp), com os 4 marcadores inteiros e nítidos. '
-                            'Distância de 2 a 3 m, de frente para o quadro.',
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _boardWidthController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(labelText: 'Largura do quadro (cm)'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextField(
-                              controller: _boardHeightController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(labelText: 'Altura do quadro (cm)'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Medidas reais do quadro como ele aparece na foto (largura = lado horizontal), com os '
-                        'papéis colados a 50 mm das bordas. Quadro da loja: 250 × 150 cm. Se estiver errado, '
-                        'todas as medidas saem erradas.',
-                        style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 12),
-                      ),
-                      const SizedBox(height: 16),
-                      _UploadDropzone(
-                        selectedBytes: _selectedBytes,
-                        processing: _processing,
-                        stage: _stage,
-                        onTap: _processing ? null : _pickAndProcess,
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 16),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: MoldScanColors.danger.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: MoldScanColors.danger.withValues(alpha: 0.4)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline, color: MoldScanColors.danger, size: 18),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(_error!, style: const TextStyle(color: MoldScanColors.textPrimary)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (contour != null) ...[
-                  const SizedBox(height: 16),
-                  SectionCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SectionHeading(
-                          icon: Icons.auto_fix_high_outlined,
-                          title: 'Vetorização & DXF',
-                          subtitle: 'Confira o contorno detectado e exporte o arquivo de corte.',
-                        ),
-                        if (_warnings.isNotEmpty) ...[
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              color: MoldScanColors.warning.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: MoldScanColors.warning.withValues(alpha: 0.5)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                for (final w in _warnings)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 2),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Icon(Icons.warning_amber_rounded, color: MoldScanColors.warning, size: 18),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(w, style: const TextStyle(color: MoldScanColors.textPrimary)),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (_preview != null) ...[
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(_preview!, fit: BoxFit.contain),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'A linha rosa é o contorno medido, sobre a foto já endireitada (vista de cima). '
-                            'Ela deve acompanhar a borda externa do molde, de ponta a ponta. Se não acompanhar, '
-                            'as medidas abaixo não valem — refaça a foto.',
-                            style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 12),
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
+                      const MoldTopBar(),
+                      SizedBox(height: wide ? 40 : 28),
+                      _header(wide),
+                      const SizedBox(height: 22),
+                      StageRail(current: _contour != null ? 2 : (_selectedBytes != null ? 1 : 0)),
+                      const SizedBox(height: 22),
+                      if (wide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _StatChip(label: 'Vértices do contorno', value: '${contour.length}'),
-                            _StatChip(
-                              label: 'Largura (borda a borda)',
-                              value: '${(_boundingWidthMm(contour) / 10).toStringAsFixed(1)} cm',
-                            ),
-                            _StatChip(
-                              label: 'Altura (borda a borda)',
-                              value: '${(_boundingHeightMm(contour) / 10).toStringAsFixed(1)} cm',
-                            ),
+                            Expanded(flex: 7, child: _mesa()),
+                            const SizedBox(width: 36),
+                            Expanded(flex: 5, child: _sidebar()),
                           ],
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'Dados do projeto',
-                          style: TextStyle(color: MoldScanColors.textPrimary, fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(labelText: 'Nome do projeto'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _materialController,
-                          decoration: const InputDecoration(labelText: 'Material (ex: vidro, espelho, MDF)'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _thicknessController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Espessura (mm)'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _instructionsController,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            labelText: 'Instruções de corte',
-                            hintText: 'ex: cortar com fresa 6mm, atenção às quinas internas',
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        FilledButton.icon(
-                          onPressed: _downloadDxf,
-                          icon: const Icon(Icons.download, size: 18),
-                          label: const Text('Baixar DXF'),
-                        ),
+                        )
+                      else ...[
+                        _mesa(),
+                        const SizedBox(height: 22),
+                        _sidebar(),
                       ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-              ],
+                      if (_contour == null) ...[
+                        SizedBox(height: wide ? 56 : 40),
+                        Text('Como funciona', style: MoldScanType.headline(30)),
+                        const SizedBox(height: 16),
+                        const HowItWorks(),
+                      ],
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
 
-class _UploadDropzone extends StatelessWidget {
-  final Uint8List? selectedBytes;
-  final bool processing;
-  final String stage;
-  final VoidCallback? onTap;
-
-  const _UploadDropzone({
-    required this.selectedBytes,
-    required this.processing,
-    required this.stage,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: MoldScanColors.surfaceLight,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: MoldScanColors.border, width: 1.2),
+  Widget _header(bool wide) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Do molde ao arquivo de corte', style: MoldScanType.headline(wide ? 56 : 38)),
+        const SizedBox(height: 12),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: const Text(
+            'Fotografe o molde sobre o quadro de referência. O sistema mede o contorno '
+            'e gera o DXF para a mesa de corte.',
+            style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 17, height: 1.4),
+          ),
         ),
-        child: Column(
-          children: [
-            if (selectedBytes != null) ...[
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 220),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(selectedBytes!, fit: BoxFit.contain),
+      ],
+    );
+  }
+
+  Widget _mesa() {
+    final hasPreview = _preview != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        BoardPanel(
+          aspectRatio: _boardAspect,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 260),
+            child: KeyedSubtree(
+              key: ValueKey('${_processing}_${hasPreview}_${_selectedBytes != null}'),
+              child: _mesaContent(),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (hasPreview) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 9, right: 10),
+                child: Container(width: 26, height: 3, color: MoldScanColors.cut),
+              ),
+              const Expanded(
+                child: Text(
+                  'Contorno medido, sobre a foto vista de cima. Ele deve acompanhar a borda externa do '
+                  'molde, de ponta a ponta. Se não acompanhar, as medidas não valem: refaça a foto.',
+                  style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5, height: 1.4),
                 ),
               ),
-              const SizedBox(height: 16),
-            ] else ...[
-              const Icon(Icons.image_outlined, size: 40, color: MoldScanColors.textSecondary),
-              const SizedBox(height: 12),
             ],
-            if (processing) ...[
-              const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: _processing ? null : _pickAndProcess,
+            icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+            label: const Text('Enviar outra foto'),
+          ),
+        ] else
+          const Text(
+            'Mostre os 4 marcadores inteiros e nítidos, de 2 a 3 m, de frente para o quadro. '
+            'Use a foto original da câmera, não a enviada por WhatsApp.',
+            style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5, height: 1.4),
+          ),
+      ],
+    );
+  }
+
+  Widget _mesaContent() {
+    final bytes = _selectedBytes;
+    if (_preview != null) {
+      return Semantics(
+        label: 'Foto do quadro vista de cima, com o contorno do molde desenhado',
+        image: true,
+        child: Image.memory(_preview!, fit: BoxFit.fill, gaplessPlayback: true),
+      );
+    }
+    if (_processing && bytes != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Opacity(opacity: 0.32, child: Image.memory(bytes, fit: BoxFit.cover)),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_stage, style: MoldScanType.headline(24), textAlign: TextAlign.center),
+                  const SizedBox(height: 14),
+                  const SizedBox(width: 240, child: LinearProgressIndicator(minHeight: 3)),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text(stage, style: const TextStyle(color: MoldScanColors.textSecondary)),
-            ] else
-              FilledButton.icon(
-                onPressed: onTap,
-                icon: const Icon(Icons.upload_outlined, size: 18),
-                label: Text(selectedBytes == null ? 'Selecionar foto' : 'Selecionar outra foto'),
-              ),
+            ),
+          ),
+        ],
+      );
+    }
+    if (bytes != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Opacity(opacity: 0.4, child: Image.memory(bytes, fit: BoxFit.cover)),
+          Center(
+            child: FilledButton.icon(
+              onPressed: _pickAndProcess,
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+              label: const Text('Escolher outra foto'),
+            ),
+          ),
+        ],
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Envie a foto do molde\nsobre o quadro',
+              style: MoldScanType.headline(26),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _pickAndProcess,
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+              label: const Text('Escolher foto'),
+            ),
           ],
         ),
       ),
     );
   }
-}
 
-class _StatChip extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _StatChip({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: MoldScanColors.surfaceLight,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: MoldScanColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 11)),
-          const SizedBox(height: 2),
+  Widget _sidebar() {
+    final contour = _contour;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _boardSettings(),
+        if (_error != null) ...[
+          const SizedBox(height: 16),
+          Notice(color: MoldScanColors.danger, icon: Icons.error_outline, messages: [_error!]),
+        ],
+        if (contour != null) ...[
+          const SizedBox(height: 28),
+          Wrap(
+            spacing: 40,
+            runSpacing: 22,
+            children: [
+              Readout(label: 'Largura', value: _cm(_extent(contour, (p) => p.x)), unit: 'cm'),
+              Readout(label: 'Altura', value: _cm(_extent(contour, (p) => p.y)), unit: 'cm'),
+            ],
+          ),
+          const SizedBox(height: 12),
           Text(
-            value,
-            style: const TextStyle(
-              color: MoldScanColors.accent,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
+            'Medidas de borda a borda do contorno, que tem ${contour.length} vértices.',
+            style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5),
+          ),
+          if (_warnings.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Notice(color: MoldScanColors.warning, icon: Icons.warning_amber_rounded, messages: _warnings),
+          ],
+          const SizedBox(height: 28),
+          Text('Dados do projeto', style: MoldScanType.headline(24)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: 'Nome do projeto'),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _materialController,
+                  decoration: const InputDecoration(labelText: 'Material', hintText: 'vidro, espelho, MDF'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: _thicknessController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Espessura (mm)'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _instructionsController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Instruções de corte',
+              hintText: 'ex: fresa 6 mm, cuidado nas quinas internas',
+            ),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _downloadDxf,
+              icon: const Icon(Icons.download, size: 20),
+              label: const Text('Baixar DXF'),
             ),
           ),
         ],
-      ),
+      ],
     );
   }
-}
 
-class _HowItWorksStep extends StatelessWidget {
-  final int number;
-  final String title;
-  final String text;
-
-  const _HowItWorksStep({required this.number, required this.title, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _boardSettings() {
     return Container(
-      width: 190,
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: MoldScanColors.surfaceLight,
-        borderRadius: BorderRadius.circular(10),
+        color: MoldScanColors.surface,
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(color: MoldScanColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: MoldScanColors.accent,
-            child: Text(
-              '$number',
-              style: const TextStyle(color: MoldScanColors.background, fontWeight: FontWeight.w800),
+          InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () => setState(() => _settingsOpen = !_settingsOpen),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Quadro de referência', style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5)),
+                        const SizedBox(height: 2),
+                        ListenableBuilder(
+                          listenable: Listenable.merge([_boardWidthController, _boardHeightController]),
+                          builder: (context, _) => Text(
+                            '${_boardWidthController.text} × ${_boardHeightController.text} cm',
+                            style: MoldScanType.headline(28),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    _settingsOpen ? 'Fechar' : 'Alterar',
+                    style: const TextStyle(color: MoldScanColors.accentAlt, fontWeight: FontWeight.w600),
+                  ),
+                  Icon(_settingsOpen ? Icons.expand_less : Icons.expand_more, color: MoldScanColors.accentAlt),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            title,
-            style: const TextStyle(color: MoldScanColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 14),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            alignment: Alignment.topCenter,
+            child: _settingsOpen
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _boardWidthController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(labelText: 'Largura (cm)'),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _boardHeightController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: const InputDecoration(labelText: 'Altura (cm)'),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Use as medidas reais do quadro como ele aparece na foto: a largura é o lado '
+                          'horizontal. O quadro da loja tem 250 × 150 cm. Com medidas erradas, todas '
+                          'as medidas saem erradas.',
+                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
+                        ),
+                        const SizedBox(height: 16),
+                        OutlinedButton.icon(
+                          onPressed: _generatingBoard ? null : _downloadBoard,
+                          icon: const Icon(Icons.download_outlined, size: 18),
+                          label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores em PDF'),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '4 folhas A4, uma por marcador. Imprima a 100%, recorte na linha tracejada e cole '
+                          'nos cantos do quadro, com a borda do papel a 50 mm das bordas.',
+                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
           ),
-          const SizedBox(height: 4),
-          Text(text, style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 12, height: 1.35)),
         ],
       ),
     );
