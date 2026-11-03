@@ -38,4 +38,9 @@ class MoldBoardSpec {
   static const brightnessMinRatio = 0.35;
   // Where the piece's edge is placed, as a share of its own contrast.
   static const edgeContrastRatio = 0.35;
+
+  // Focal length of a typical phone main camera (26mm equivalent) as a share
+  // of the photo's long side; used to estimate how far the camera was, for the
+  // thickness correction. A 2x lens is ~1.4, an ultra-wide ~0.36.
+  static const assumedFocalRatio = 0.72;
 }

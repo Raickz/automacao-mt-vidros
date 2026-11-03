@@ -8,6 +8,7 @@ import '../models/board_corner.dart';
 import '../models/board_geometry.dart';
 import 'background_model.dart';
 import 'board_marker_detector.dart';
+import 'camera_pose.dart';
 import 'contour_extractor.dart';
 import 'image_rectifier.dart';
 import 'polyline_simplifier.dart';
@@ -28,7 +29,16 @@ class MoldScanResult {
   /// it, so the user can check with their own eyes what was measured.
   final Uint8List? previewPng;
 
-  const MoldScanResult({required this.contourMm, this.warnings = const [], this.previewPng});
+  /// Where the camera was, for the thickness correction; null if it could
+  /// not be worked out.
+  final CameraPose? cameraPose;
+
+  const MoldScanResult({
+    required this.contourMm,
+    this.warnings = const [],
+    this.previewPng,
+    this.cameraPose,
+  });
 }
 
 /// The whole photo -> contour pipeline in plain Dart (no platform channels,
@@ -107,6 +117,7 @@ class MoldScanPipeline {
     await stage('Corrigindo a perspectiva...');
     final dstMm = [for (final c in _cornerOrder) c.knownPositionMm(board)];
     final pixelToMm = Homography.fromCorrespondences(srcPixels, dstMm);
+    final pose = CameraPoseEstimator.estimate(pixelToMm: pixelToMm, width: photo.width, height: photo.height);
     final rectified = ImageRectifier.rectify(
       source: photo,
       pixelToMm: pixelToMm,
@@ -157,7 +168,7 @@ class MoldScanPipeline {
     await stage('Montando a prévia...');
     final preview = _buildPreview(rectified, contour);
 
-    return MoldScanResult(contourMm: contour, warnings: warnings, previewPng: preview);
+    return MoldScanResult(contourMm: contour, warnings: warnings, previewPng: preview, cameraPose: pose);
   }
 
   static Uint8List _buildPreview(img.Image rectified, List<Point2D> contour) {

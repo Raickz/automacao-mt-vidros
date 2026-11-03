@@ -25,6 +25,7 @@ class SceneConfig {
   final List<(Point2D, Point2D, double)> grooves;
   final (int, int, int) grooveColor;
   final double tableBandMm;
+  final double thicknessMm;
   final (int, int, int) tableColor;
 
   const SceneConfig({
@@ -42,6 +43,7 @@ class SceneConfig {
     this.grooves = const [],
     this.grooveColor = (75, 55, 40),
     this.tableBandMm = 0,
+    this.thicknessMm = 0,
     this.tableColor = (62, 36, 22),
   });
 }
@@ -55,6 +57,8 @@ class SyntheticScene {
   final int height;
   final List<Point2D> boardPixelCorners;
   final BoardGeometry geometry;
+  final Point2D? cameraNadir;
+  final double? cameraHeightMm;
 
   late final Homography _mmToPx;
   late final Homography pixelToMm;
@@ -66,6 +70,8 @@ class SyntheticScene {
     required this.height,
     required this.boardPixelCorners,
     this.geometry = BoardGeometry.standard,
+    this.cameraNadir,
+    this.cameraHeightMm,
   }) {
     final mm = [
       const Point2D(0, 0),
@@ -187,7 +193,17 @@ class SyntheticScene {
             }
           }
 
-          if (mx >= minX && mx <= maxX && my >= minY && my <= maxY && _inPolygon(mx, my, poly)) {
+          // A mold with thickness: its top face is nearer the camera than the
+          // board, so it lands on the board plane scaled away from the point
+          // under the camera by h/(h - t). Undo that to test the real outline.
+          var qx = mx, qy = my;
+          final camH = cameraHeightMm, nadir = cameraNadir;
+          if (cfg.thicknessMm > 0 && camH != null && nadir != null) {
+            final k = (camH - cfg.thicknessMm) / camH;
+            qx = nadir.x + (mx - nadir.x) * k;
+            qy = nadir.y + (my - nadir.y) * k;
+          }
+          if (qx >= minX && qx <= maxX && qy >= minY && qy <= maxY && _inPolygon(qx, qy, poly)) {
             r = cfg.moldColor.$1.toDouble();
             g = cfg.moldColor.$2.toDouble();
             b = cfg.moldColor.$3.toDouble();

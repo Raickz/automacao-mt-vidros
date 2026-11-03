@@ -20,7 +20,11 @@ class MtLogoPlate extends StatelessWidget {
       image: true,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: Image.asset('assets/images/logo.png', height: height, fit: BoxFit.contain),
+        child: Image.asset(
+          'assets/images/logo.png',
+          height: height,
+          fit: BoxFit.contain,
+        ),
       ),
     );
   }
@@ -38,7 +42,12 @@ class MoldTopBar extends StatelessWidget {
         const MtLogoPlate(height: 46),
         const SizedBox(width: 14),
         Expanded(
-          child: Text('Digitalizar molde', style: MoldScanType.headline(26), maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: Text(
+            'Digitalizar molde',
+            style: MoldScanType.headline(26),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
@@ -137,15 +146,21 @@ class StageRail extends StatelessWidget {
                 children: [
                   Container(
                     height: 3,
-                    color: i <= current ? MoldScanColors.accent : MoldScanColors.border,
+                    color: i <= current
+                        ? MoldScanColors.accent
+                        : MoldScanColors.border,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '${i + 1}  ${_labels[i]}',
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: i == current ? FontWeight.w600 : FontWeight.w500,
-                      color: i <= current ? MoldScanColors.textPrimary : MoldScanColors.textSecondary,
+                      fontWeight: i == current
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: i <= current
+                          ? MoldScanColors.textPrimary
+                          : MoldScanColors.textSecondary,
                     ),
                   ),
                 ],
@@ -164,7 +179,12 @@ class Readout extends StatelessWidget {
   final String value;
   final String unit;
 
-  const Readout({super.key, required this.label, required this.value, required this.unit});
+  const Readout({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.unit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +195,13 @@ class Readout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 15)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: MoldScanColors.textSecondary,
+              fontSize: 15,
+            ),
+          ),
           const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -184,11 +210,19 @@ class Readout extends StatelessWidget {
             children: [
               Text(value, style: MoldScanType.readout(60)),
               const SizedBox(width: 6),
-              Text(unit, style: MoldScanType.headline(26).copyWith(color: MoldScanColors.accentAlt)),
+              Text(
+                unit,
+                style: MoldScanType.headline(26)
+                    .copyWith(color: MoldScanColors.accentAlt),
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          const SizedBox(width: 170, height: 10, child: CustomPaint(painter: _DimensionLinePainter())),
+          const SizedBox(
+            width: 170,
+            height: 10,
+            child: CustomPaint(painter: _DimensionLinePainter()),
+          ),
         ],
       ),
     );
@@ -220,7 +254,12 @@ class Notice extends StatelessWidget {
   final IconData icon;
   final List<String> messages;
 
-  const Notice({super.key, required this.color, required this.icon, required this.messages});
+  const Notice({
+    super.key,
+    required this.color,
+    required this.icon,
+    required this.messages,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +282,14 @@ class Notice extends StatelessWidget {
                   Icon(icon, color: color, size: 18),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(m, style: const TextStyle(color: MoldScanColors.textPrimary, fontSize: 15, height: 1.35)),
+                    child: Text(
+                      m,
+                      style: const TextStyle(
+                        color: MoldScanColors.textPrimary,
+                        fontSize: 15,
+                        height: 1.35,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -259,9 +305,18 @@ class HowItWorks extends StatelessWidget {
   const HowItWorks({super.key});
 
   static const _steps = [
-    ('Preparar o quadro', 'Quadro azul fixo com 4 marcadores QR nos cantos. Feito uma única vez.'),
-    ('Fotografar', 'Molde sobre o quadro, de 2 a 3 m, com os 4 marcadores na foto.'),
-    ('Medir', 'O sistema corrige a perspectiva e traça o contorno em milímetros.'),
+    (
+      'Preparar o quadro',
+      'Quadro azul fixo com 4 marcadores QR nos cantos. Feito uma única vez.',
+    ),
+    (
+      'Fotografar',
+      'Molde sobre o quadro, de 2 a 3 m, com os 4 marcadores na foto.',
+    ),
+    (
+      'Medir',
+      'O sistema corrige a perspectiva e traça o contorno em milímetros.',
+    ),
     ('Cortar', 'Confira as medidas e baixe o DXF para a mesa de corte CNC.'),
   ];
 
@@ -303,28 +358,51 @@ class _StepTile extends StatelessWidget {
   final String title;
   final String text;
 
-  const _StepTile({required this.number, required this.title, required this.text});
+  const _StepTile({
+    required this.number,
+    required this.title,
+    required this.text,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 12),
-      decoration: const BoxDecoration(border: Border(top: BorderSide(color: MoldScanColors.border))),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: MoldScanColors.border)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 34,
-            child: Text('$number', style: MoldScanType.headline(32).copyWith(color: MoldScanColors.accent)),
+            child: Text(
+              '$number',
+              style: MoldScanType.headline(32)
+                  .copyWith(color: MoldScanColors.accent),
+            ),
           ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
                 const SizedBox(height: 4),
-                Text(text, style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5, height: 1.4)),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: MoldScanColors.textSecondary,
+                    fontSize: 14.5,
+                    height: 1.4,
+                  ),
+                ),
               ],
             ),
           ),
@@ -339,15 +417,22 @@ class _StepTile extends StatelessWidget {
 class MeasurementSummary extends StatelessWidget {
   final List<Point2D> contour;
   final List<String> warnings;
+  final String? note;
 
-  const MeasurementSummary({super.key, required this.contour, required this.warnings});
+  const MeasurementSummary({
+    super.key,
+    required this.contour,
+    required this.warnings,
+    this.note,
+  });
 
   static double _extent(List<Point2D> pts, double Function(Point2D) f) {
     final v = pts.map(f);
     return v.reduce(max) - v.reduce(min);
   }
 
-  static String _cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
+  static String _cm(double mm) =>
+      (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
 
   @override
   Widget build(BuildContext context) {
@@ -358,18 +443,44 @@ class MeasurementSummary extends StatelessWidget {
           spacing: 40,
           runSpacing: 22,
           children: [
-            Readout(label: 'Largura', value: _cm(_extent(contour, (p) => p.x)), unit: 'cm'),
-            Readout(label: 'Altura', value: _cm(_extent(contour, (p) => p.y)), unit: 'cm'),
+            Readout(
+              label: 'Largura',
+              value: _cm(_extent(contour, (p) => p.x)),
+              unit: 'cm',
+            ),
+            Readout(
+              label: 'Altura',
+              value: _cm(_extent(contour, (p) => p.y)),
+              unit: 'cm',
+            ),
           ],
         ),
         const SizedBox(height: 12),
         Text(
           'Medidas de borda a borda do contorno, que tem ${contour.length} vértices.',
-          style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5),
+          style: const TextStyle(
+            color: MoldScanColors.textSecondary,
+            fontSize: 14.5,
+          ),
         ),
+        if (note != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            note!,
+            style: const TextStyle(
+              color: MoldScanColors.textSecondary,
+              fontSize: 14.5,
+              height: 1.4,
+            ),
+          ),
+        ],
         if (warnings.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Notice(color: MoldScanColors.warning, icon: Icons.warning_amber_rounded, messages: warnings),
+          Notice(
+            color: MoldScanColors.warning,
+            icon: Icons.warning_amber_rounded,
+            messages: warnings,
+          ),
         ],
       ],
     );

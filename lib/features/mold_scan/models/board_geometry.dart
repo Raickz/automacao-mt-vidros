@@ -39,6 +39,24 @@ class BoardGeometry {
     return board.isUsable ? board : null;
   }
 
+  /// Builds the board from the distance the user measured between the
+  /// markers, in cm: from the left edge of one black square to the left edge
+  /// of the other (the same edge on both gives the center-to-center distance
+  /// without having to find the center). Measuring this directly, instead of
+  /// trusting that the papers were glued exactly where the PDF says, removes
+  /// the biggest source of scale error: 1% off here is 2cm on a 2.2m board.
+  static BoardGeometry? fromMarkerSpans(String horizontal, String vertical) {
+    double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+    final w = parse(horizontal), h = parse(vertical);
+    if (w == null || h == null) return null;
+    final board = BoardGeometry(widthMm: w * 10 + 2 * markerInsetMm, heightMm: h * 10 + 2 * markerInsetMm);
+    return board.isUsable ? board : null;
+  }
+
+  static const spanHint =
+      'Informe a distância entre os marcadores, em cm, medida do canto esquerdo de um quadrado preto até o '
+      'canto esquerdo do outro. Cada medida precisa ter 30 cm ou mais, e o quadro todo no máximo 8 m².';
+
   static const sizeHint = 'Informe a largura e a altura reais do quadro, em cm: cada lado a partir de 60 cm '
       'e a área de até 8 m² (por exemplo, 400 × 200 cm).';
 }

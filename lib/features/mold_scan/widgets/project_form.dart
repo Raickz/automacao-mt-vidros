@@ -13,19 +13,29 @@ class ProjectData {
   final thickness = TextEditingController(text: '4');
   final instructions = TextEditingController();
 
-  double? get thicknessMm => double.tryParse(thickness.text.trim().replaceAll(',', '.'));
+  double? get thicknessMm =>
+      double.tryParse(thickness.text.trim().replaceAll(',', '.'));
 
   String dxf(List<Point2D> contour) {
     final t = thicknessMm;
-    return DxfWriter.write(contour, comments: [
-      'Projeto: ${name.text.trim()}',
-      if (material.text.trim().isNotEmpty) 'Material: ${material.text.trim()}',
-      if (t != null && t > 0) 'Espessura: $t mm',
-      if (instructions.text.trim().isNotEmpty) 'Instrucoes de corte: ${instructions.text.trim()}',
-    ]);
+    return DxfWriter.write(
+      contour,
+      comments: [
+        'Projeto: ${name.text.trim()}',
+        if (material.text.trim().isNotEmpty)
+          'Material: ${material.text.trim()}',
+        if (t != null && t > 0) 'Espessura: $t mm',
+        if (instructions.text.trim().isNotEmpty)
+          'Instrucoes de corte: ${instructions.text.trim()}',
+      ],
+    );
   }
 
-  String get fileName => DxfWriter.fileName(name: name.text, material: material.text, thicknessMm: thicknessMm);
+  String get fileName => DxfWriter.fileName(
+    name: name.text,
+    material: material.text,
+    thicknessMm: thicknessMm,
+  );
 
   void dispose() {
     name.dispose();
@@ -47,7 +57,10 @@ class ProjectFields extends StatelessWidget {
       children: [
         Text('Dados do projeto', style: MoldScanType.headline(24)),
         const SizedBox(height: 14),
-        TextField(controller: data.name, decoration: const InputDecoration(labelText: 'Nome do projeto')),
+        TextField(
+          controller: data.name,
+          decoration: const InputDecoration(labelText: 'Nome do projeto'),
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -55,7 +68,10 @@ class ProjectFields extends StatelessWidget {
               flex: 3,
               child: TextField(
                 controller: data.material,
-                decoration: const InputDecoration(labelText: 'Material', hintText: 'vidro, espelho, MDF'),
+                decoration: const InputDecoration(
+                  labelText: 'Material',
+                  hintText: 'vidro, espelho, MDF',
+                ),
               ),
             ),
             const SizedBox(width: 12),

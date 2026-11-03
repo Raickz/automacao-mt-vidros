@@ -56,6 +56,13 @@ class MoldBoardPdfBuilder {
                 'a ${paperEdgeMm.toStringAsFixed(0)}mm ${_verticalEdge(corner)}.',
                 style: const pw.TextStyle(fontSize: 9),
               ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                'Depois de colar os 4 marcadores, meca no quadro a distancia entre os quadrados '
+                'pretos (do canto esquerdo de um ao canto esquerdo do outro) e digite no app: '
+                'essa medida define a escala de tudo.',
+                style: const pw.TextStyle(fontSize: 9),
+              ),
               pw.SizedBox(height: 8),
               pw.Container(
                 width: cutPt,

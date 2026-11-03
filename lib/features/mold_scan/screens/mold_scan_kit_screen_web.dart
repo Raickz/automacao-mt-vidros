@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/board_geometry.dart';
+import '../services/camera_pose.dart';
 import '../services/homography.dart';
 import '../services/mold_board_pdf_builder.dart';
 import '../services/mold_scan_service_web.dart';
@@ -30,10 +31,11 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   List<String> _warnings = const [];
   List<Point2D>? _contour;
   Uint8List? _preview;
+  CameraPose? _pose;
 
   final _project = ProjectData();
-  final _boardWidthController = TextEditingController(text: '250');
-  final _boardHeightController = TextEditingController(text: '150');
+  final _boardWidthController = TextEditingController(text: '220');
+  final _boardHeightController = TextEditingController(text: '120');
 
   @override
   void dispose() {
@@ -43,7 +45,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     super.dispose();
   }
 
-  BoardGeometry? get _typedBoard => BoardGeometry.fromCentimeters(
+  BoardGeometry? get _typedBoard => BoardGeometry.fromMarkerSpans(
     _boardWidthController.text,
     _boardHeightController.text,
   );
@@ -59,7 +61,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     final board = _typedBoard;
     if (board == null) {
       setState(() {
-        _error = BoardGeometry.sizeHint;
+        _error = BoardGeometry.spanHint;
         _settingsOpen = true;
       });
     }
@@ -103,6 +105,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
       _warnings = const [];
       _contour = null;
       _preview = null;
+      _pose = null;
     });
     // Let the progress bar paint before the (UI-thread) processing starts.
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -120,6 +123,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _contour = result.contourMm;
         _warnings = result.warnings;
         _preview = result.previewPng;
+        _pose = result.cameraPose;
         _processing = false;
       });
     } on MoldScanException catch (e) {
@@ -141,10 +145,39 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     final contour = _contour;
     if (contour == null) return;
     downloadBytes(
-      _project.dxf(contour).codeUnits,
+      _project.dxf(_shown(contour)).codeUnits,
       _project.fileName,
       'application/dxf',
     );
+  }
+
+  /// The mold's top face is closer to the camera than the board, so it looks
+  /// bigger; take that off using the thickness typed in the project data.
+  List<Point2D> _shown(List<Point2D> contour) =>
+      CameraPoseEstimator.correctForThickness(
+        contour,
+        _pose,
+        _project.thicknessMm,
+      );
+
+  String _thicknessNote(List<Point2D> raw, List<Point2D> shown) {
+    final t = _project.thicknessMm;
+    if (t == null || t <= 0) {
+      return 'Sem desconto de espessura. Informe a espessura do molde em "Dados do projeto": o topo do molde '
+          'fica mais perto da câmera que o quadro e aparece maior.';
+    }
+    final pose = _pose;
+    if (pose == null) {
+      return 'Não foi possível estimar a distância da câmera, então a espessura não foi descontada.';
+    }
+    double span(List<Point2D> pts, double Function(Point2D) f) =>
+        pts.map(f).reduce((a, b) => a > b ? a : b) -
+        pts.map(f).reduce((a, b) => a < b ? a : b);
+    String mm(double v) => v.toStringAsFixed(1).replaceAll('.', ',');
+    final dw = span(raw, (p) => p.x) - span(shown, (p) => p.x);
+    final dh = span(raw, (p) => p.y) - span(shown, (p) => p.y);
+    return 'Descontei a espessura de ${mm(t)} mm (câmera a cerca de ${mm(pose.heightMm / 1000)} m): '
+        '${mm(dw)} mm na largura e ${mm(dh)} mm na altura.';
   }
 
   @override
@@ -381,7 +414,17 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         ],
         if (contour != null) ...[
           const SizedBox(height: 28),
-          MeasurementSummary(contour: contour, warnings: _warnings),
+          ListenableBuilder(
+            listenable: _project.thickness,
+            builder: (context, _) {
+              final shown = _shown(contour);
+              return MeasurementSummary(
+                contour: shown,
+                warnings: _warnings,
+                note: _thicknessNote(contour, shown),
+              );
+            },
+          ),
           const SizedBox(height: 28),
           ProjectFields(data: _project),
           const SizedBox(height: 20),
@@ -420,7 +463,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Quadro de referência',
+                          'Distância entre os marcadores',
                           style: TextStyle(
                             color: MoldScanColors.textSecondary,
                             fontSize: 14.5,
@@ -474,7 +517,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                                       decimal: true,
                                     ),
                                 decoration: const InputDecoration(
-                                  labelText: 'Largura (cm)',
+                                  labelText: 'Na horizontal (cm)',
                                 ),
                                 onChanged: (_) => setState(() {}),
                               ),
@@ -488,7 +531,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                                       decimal: true,
                                     ),
                                 decoration: const InputDecoration(
-                                  labelText: 'Altura (cm)',
+                                  labelText: 'Na vertical (cm)',
                                 ),
                                 onChanged: (_) => setState(() {}),
                               ),
@@ -497,9 +540,10 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                         ),
                         const SizedBox(height: 10),
                         const Text(
-                          'Use as medidas reais do quadro como ele aparece na foto: a largura é o lado '
-                          'horizontal. O quadro da loja tem 250 × 150 cm. Com medidas erradas, todas '
-                          'as medidas saem erradas.',
+                          'Depois de colar os 4 marcadores, meça com a trena do canto esquerdo de um '
+                          'quadrado preto até o canto esquerdo do outro: nos dois de cima para a medida '
+                          'horizontal, nos dois da esquerda para a vertical. Essa medida define a escala '
+                          'de tudo, então meça com cuidado. No quadro da loja dá 220 × 120 cm.',
                           style: TextStyle(
                             color: MoldScanColors.textSecondary,
                             fontSize: 14,
