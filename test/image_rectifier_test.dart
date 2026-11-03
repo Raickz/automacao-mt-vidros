@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
-import 'package:mt_vidros_app/features/measurement/services/homography.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/image_rectifier.dart';
 
 void main() {

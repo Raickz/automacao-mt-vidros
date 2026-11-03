@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-import '../../measurement/services/homography.dart';
+import 'homography.dart';
 
 /// Warps a photo into a flat, top-down view at a known, fixed scale, using a
 /// homography computed from reference points visible in that photo (e.g. the

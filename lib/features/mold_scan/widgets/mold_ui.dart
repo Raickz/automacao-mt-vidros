@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
+import '../services/homography.dart';
 import '../theme/mold_scan_colors.dart';
 import '../theme/mold_scan_theme.dart';
 
@@ -327,6 +330,48 @@ class _StepTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Width and height of the contour as big readouts, how many vertices it has
+/// and any quality warnings from the scan.
+class MeasurementSummary extends StatelessWidget {
+  final List<Point2D> contour;
+  final List<String> warnings;
+
+  const MeasurementSummary({super.key, required this.contour, required this.warnings});
+
+  static double _extent(List<Point2D> pts, double Function(Point2D) f) {
+    final v = pts.map(f);
+    return v.reduce(max) - v.reduce(min);
+  }
+
+  static String _cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 40,
+          runSpacing: 22,
+          children: [
+            Readout(label: 'Largura', value: _cm(_extent(contour, (p) => p.x)), unit: 'cm'),
+            Readout(label: 'Altura', value: _cm(_extent(contour, (p) => p.y)), unit: 'cm'),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Medidas de borda a borda do contorno, que tem ${contour.length} vértices.',
+          style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5),
+        ),
+        if (warnings.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Notice(color: MoldScanColors.warning, icon: Icons.warning_amber_rounded, messages: warnings),
+        ],
+      ],
     );
   }
 }

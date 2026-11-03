@@ -14,10 +14,11 @@ class MoldBoardSpec {
   static const backgroundB = 200;
 
   // A fixed board built at the store, sized for glass/mirror pieces up to
-  // ~2m. Markers are 180mm so each one fits on a single A4 sheet with no
-  // cutting or taping (the target printer only supports A4). Rule of thumb:
-  // max reliable reading distance ≈ 10x marker size, so photos should be
-  // taken from no more than ~1.8m away.
+  // ~2m. Markers are 180mm so each one fits on a single A4 sheet (the target
+  // printer only supports A4). The limit on photo distance is not the marker
+  // size: with a normal phone photo a 180mm marker stays readable well past
+  // 3m (see the 1600px case in mold_scan_e2e_test). What limits it is
+  // fitting the whole board in the frame, about 2-3m for a 2.5m board.
   static const boardWidthMm = 2500.0;
   static const boardHeightMm = 1500.0;
   static const markerSizeMm = 180.0;

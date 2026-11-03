@@ -3,9 +3,10 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-import '../../measurement/services/homography.dart';
+import 'homography.dart';
 import '../models/board_corner.dart';
 import '../models/board_geometry.dart';
+import 'background_model.dart';
 import 'board_marker_detector.dart';
 import 'contour_extractor.dart';
 import 'image_rectifier.dart';
@@ -59,9 +60,7 @@ class MoldScanPipeline {
     Future<void> Function(String stage)? onStage,
   }) async {
     if (!board.isUsable) {
-      throw const MoldScanException(
-        'Medidas do quadro inválidas. Informe a largura e a altura reais do quadro (entre 60 cm e 800 cm).',
-      );
+      throw const MoldScanException(BoardGeometry.sizeHint);
     }
 
     Future<void> stage(String s) async {
@@ -119,7 +118,7 @@ class MoldScanPipeline {
     await stage('Extraindo o contorno do molde...');
     final ContourResult extracted;
     try {
-      final background = ContourExtractor.estimateBackground(
+      final background = BackgroundModel.estimate(
         image: rectified,
         pixelsPerMm: pixelsPerMm,
         boardWidthMm: board.widthMm,

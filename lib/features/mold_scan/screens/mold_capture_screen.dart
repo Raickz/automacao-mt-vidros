@@ -1,11 +1,14 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
+import '../models/board_geometry.dart';
 import '../services/mold_scan_service_io.dart';
 import 'mold_result_screen.dart';
 
 class MoldCaptureScreen extends StatefulWidget {
-  const MoldCaptureScreen({super.key});
+  final BoardGeometry board;
+
+  const MoldCaptureScreen({super.key, required this.board});
 
   @override
   State<MoldCaptureScreen> createState() => _MoldCaptureScreenState();
@@ -52,7 +55,7 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
 
     try {
       final photo = await controller.takePicture();
-      final result = await MoldScanService().scanContourFromPhoto(photo.path);
+      final result = await MoldScanService().scanContourFromPhoto(photo.path, board: widget.board);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(

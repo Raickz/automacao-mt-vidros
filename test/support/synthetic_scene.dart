@@ -2,7 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
-import 'package:mt_vidros_app/features/measurement/services/homography.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_corner.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/mold_board_spec.dart';

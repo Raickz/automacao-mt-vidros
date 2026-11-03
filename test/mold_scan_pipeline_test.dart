@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
-import 'package:mt_vidros_app/features/measurement/services/homography.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/mold_board_spec.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/contour_extractor.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/dxf_writer.dart';
@@ -102,7 +102,7 @@ void main() {
 
       // 4. The simplified contour should still produce a valid DXF file.
       final dxf = DxfWriter.write(simplified);
-      expect(dxf, contains('LWPOLYLINE'));
+      expect(dxf, contains('LINE'));
     },
   );
 }

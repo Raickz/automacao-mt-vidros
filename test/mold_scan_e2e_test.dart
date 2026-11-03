@@ -2,7 +2,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mt_vidros_app/features/measurement/services/homography.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_corner.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/mold_scan_pipeline.dart';

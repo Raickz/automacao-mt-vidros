@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import '../../measurement/services/homography.dart';
+import 'homography.dart';
 
 /// Reduces a dense, noisy list of contour points (e.g. from pixel-by-pixel
 /// boundary tracing) into a clean polyline, using the Douglas-Peucker

@@ -1,18 +1,17 @@
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../measurement/services/homography.dart';
 import '../models/board_geometry.dart';
-import '../services/dxf_writer.dart';
+import '../services/homography.dart';
 import '../services/mold_board_pdf_builder.dart';
 import '../services/mold_scan_service_web.dart';
 import '../services/web_download.dart';
 import '../theme/mold_scan_colors.dart';
 import '../theme/mold_scan_theme.dart';
 import '../widgets/mold_ui.dart';
+import '../widgets/project_form.dart';
 
 class MoldScanKitScreen extends StatefulWidget {
   const MoldScanKitScreen({super.key});
@@ -32,42 +31,37 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   List<Point2D>? _contour;
   Uint8List? _preview;
 
-  final _nameController = TextEditingController(text: 'Molde 01');
-  final _materialController = TextEditingController();
-  final _thicknessController = TextEditingController(text: '4');
-  final _instructionsController = TextEditingController();
+  final _project = ProjectData();
   final _boardWidthController = TextEditingController(text: '250');
   final _boardHeightController = TextEditingController(text: '150');
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _materialController.dispose();
-    _thicknessController.dispose();
-    _instructionsController.dispose();
+    _project.dispose();
     _boardWidthController.dispose();
     _boardHeightController.dispose();
     super.dispose();
   }
 
-  double? _parseCm(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+  BoardGeometry? get _typedBoard => BoardGeometry.fromCentimeters(
+    _boardWidthController.text,
+    _boardHeightController.text,
+  );
 
   double get _boardAspect {
-    final w = _parseCm(_boardWidthController.text), h = _parseCm(_boardHeightController.text);
-    if (w == null || h == null || w <= 0 || h <= 0) return 250 / 150;
-    return (w / h).clamp(0.6, 2.4);
+    final board = _typedBoard;
+    return board == null
+        ? 250 / 150
+        : (board.widthMm / board.heightMm).clamp(0.6, 2.4);
   }
 
   BoardGeometry? _readBoard() {
-    final w = _parseCm(_boardWidthController.text);
-    final h = _parseCm(_boardHeightController.text);
-    final board = (w == null || h == null) ? null : BoardGeometry(widthMm: w * 10, heightMm: h * 10);
-    if (board == null || !board.isUsable) {
+    final board = _typedBoard;
+    if (board == null) {
       setState(() {
-        _error = 'Informe a largura e a altura reais do quadro, em cm (entre 60 e 800).';
+        _error = BoardGeometry.sizeHint;
         _settingsOpen = true;
       });
-      return null;
     }
     return board;
   }
@@ -76,7 +70,11 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     setState(() => _generatingBoard = true);
     try {
       final bytes = await MoldBoardPdfBuilder.buildBytes();
-      downloadBytes(bytes, 'marcadores_quadro_referencia.pdf', 'application/pdf');
+      downloadBytes(
+        bytes,
+        'marcadores_quadro_referencia.pdf',
+        'application/pdf',
+      );
     } finally {
       if (mounted) setState(() => _generatingBoard = false);
     }
@@ -142,66 +140,60 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   void _downloadDxf() {
     final contour = _contour;
     if (contour == null) return;
-    final dxf = DxfWriter.write(contour);
-    final safeName = _nameController.text.trim().isEmpty
-        ? 'molde'
-        : _nameController.text.trim().replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-    downloadBytes(dxf.codeUnits, '$safeName.dxf', 'application/dxf');
+    downloadBytes(
+      _project.dxf(contour).codeUnits,
+      _project.fileName,
+      'application/dxf',
+    );
   }
-
-  double _extent(List<Point2D> pts, double Function(Point2D) f) {
-    final v = pts.map(f);
-    return v.reduce(max) - v.reduce(min);
-  }
-
-  String _cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: MoldScanTheme.dark(),
-      child: Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final wide = c.maxWidth >= 900;
-                  final pad = wide ? 32.0 : 18.0;
-                  return ListView(
-                    padding: EdgeInsets.fromLTRB(pad, 18, pad, 40),
-                    children: [
-                      const MoldTopBar(),
-                      SizedBox(height: wide ? 40 : 28),
-                      _header(wide),
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final wide = c.maxWidth >= 900;
+                final pad = wide ? 32.0 : 18.0;
+                return ListView(
+                  padding: EdgeInsets.fromLTRB(pad, 18, pad, 40),
+                  children: [
+                    const MoldTopBar(),
+                    SizedBox(height: wide ? 40 : 28),
+                    _header(wide),
+                    const SizedBox(height: 22),
+                    StageRail(
+                      current: _contour != null
+                          ? 2
+                          : (_selectedBytes != null ? 1 : 0),
+                    ),
+                    const SizedBox(height: 22),
+                    if (wide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 7, child: _mesa()),
+                          const SizedBox(width: 36),
+                          Expanded(flex: 5, child: _sidebar()),
+                        ],
+                      )
+                    else ...[
+                      _mesa(),
                       const SizedBox(height: 22),
-                      StageRail(current: _contour != null ? 2 : (_selectedBytes != null ? 1 : 0)),
-                      const SizedBox(height: 22),
-                      if (wide)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 7, child: _mesa()),
-                            const SizedBox(width: 36),
-                            Expanded(flex: 5, child: _sidebar()),
-                          ],
-                        )
-                      else ...[
-                        _mesa(),
-                        const SizedBox(height: 22),
-                        _sidebar(),
-                      ],
-                      if (_contour == null) ...[
-                        SizedBox(height: wide ? 56 : 40),
-                        Text('Como funciona', style: MoldScanType.headline(30)),
-                        const SizedBox(height: 16),
-                        const HowItWorks(),
-                      ],
+                      _sidebar(),
                     ],
-                  );
-                },
-              ),
+                    if (_contour == null) ...[
+                      SizedBox(height: wide ? 56 : 40),
+                      Text('Como funciona', style: MoldScanType.headline(30)),
+                      const SizedBox(height: 16),
+                      const HowItWorks(),
+                    ],
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -213,14 +205,21 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Do molde ao arquivo de corte', style: MoldScanType.headline(wide ? 56 : 38)),
+        Text(
+          'Do molde ao arquivo de corte',
+          style: MoldScanType.headline(wide ? 56 : 38),
+        ),
         const SizedBox(height: 12),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
           child: const Text(
             'Fotografe o molde sobre o quadro de referência. O sistema mede o contorno '
             'e gera o DXF para a mesa de corte.',
-            style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 17, height: 1.4),
+            style: TextStyle(
+              color: MoldScanColors.textSecondary,
+              fontSize: 17,
+              height: 1.4,
+            ),
           ),
         ),
       ],
@@ -237,7 +236,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 260),
             child: KeyedSubtree(
-              key: ValueKey('${_processing}_${hasPreview}_${_selectedBytes != null}'),
+              key: ValueKey(
+                '${_processing}_${hasPreview}_${_selectedBytes != null}',
+              ),
               child: _mesaContent(),
             ),
           ),
@@ -249,13 +250,21 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 9, right: 10),
-                child: Container(width: 26, height: 3, color: MoldScanColors.cut),
+                child: Container(
+                  width: 26,
+                  height: 3,
+                  color: MoldScanColors.cut,
+                ),
               ),
               const Expanded(
                 child: Text(
                   'Contorno medido, sobre a foto vista de cima. Ele deve acompanhar a borda externa do '
                   'molde, de ponta a ponta. Se não acompanhar, as medidas não valem: refaça a foto.',
-                  style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5, height: 1.4),
+                  style: TextStyle(
+                    color: MoldScanColors.textSecondary,
+                    fontSize: 14.5,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
@@ -270,7 +279,11 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
           const Text(
             'Mostre os 4 marcadores inteiros e nítidos, de 2 a 3 m, de frente para o quadro. '
             'Use a foto original da câmera, não a enviada por WhatsApp.',
-            style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5, height: 1.4),
+            style: TextStyle(
+              color: MoldScanColors.textSecondary,
+              fontSize: 14.5,
+              height: 1.4,
+            ),
           ),
       ],
     );
@@ -280,7 +293,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     final bytes = _selectedBytes;
     if (_preview != null) {
       return Semantics(
-        label: 'Foto do quadro vista de cima, com o contorno do molde desenhado',
+        label:
+            'Foto do quadro vista de cima, com o contorno do molde desenhado',
         image: true,
         child: Image.memory(_preview!, fit: BoxFit.fill, gaplessPlayback: true),
       );
@@ -296,9 +310,16 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(_stage, style: MoldScanType.headline(24), textAlign: TextAlign.center),
+                  Text(
+                    _stage,
+                    style: MoldScanType.headline(24),
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 14),
-                  const SizedBox(width: 240, child: LinearProgressIndicator(minHeight: 3)),
+                  const SizedBox(
+                    width: 240,
+                    child: LinearProgressIndicator(minHeight: 3),
+                  ),
                 ],
               ),
             ),
@@ -352,64 +373,17 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _boardSettings(),
         if (_error != null) ...[
           const SizedBox(height: 16),
-          Notice(color: MoldScanColors.danger, icon: Icons.error_outline, messages: [_error!]),
+          Notice(
+            color: MoldScanColors.danger,
+            icon: Icons.error_outline,
+            messages: [_error!],
+          ),
         ],
         if (contour != null) ...[
           const SizedBox(height: 28),
-          Wrap(
-            spacing: 40,
-            runSpacing: 22,
-            children: [
-              Readout(label: 'Largura', value: _cm(_extent(contour, (p) => p.x)), unit: 'cm'),
-              Readout(label: 'Altura', value: _cm(_extent(contour, (p) => p.y)), unit: 'cm'),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Medidas de borda a borda do contorno, que tem ${contour.length} vértices.',
-            style: const TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5),
-          ),
-          if (_warnings.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Notice(color: MoldScanColors.warning, icon: Icons.warning_amber_rounded, messages: _warnings),
-          ],
+          MeasurementSummary(contour: contour, warnings: _warnings),
           const SizedBox(height: 28),
-          Text('Dados do projeto', style: MoldScanType.headline(24)),
-          const SizedBox(height: 14),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Nome do projeto'),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                flex: 3,
-                child: TextField(
-                  controller: _materialController,
-                  decoration: const InputDecoration(labelText: 'Material', hintText: 'vidro, espelho, MDF'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  controller: _thicknessController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Espessura (mm)'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _instructionsController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Instruções de corte',
-              hintText: 'ex: fresa 6 mm, cuidado nas quinas internas',
-            ),
-          ),
+          ProjectFields(data: _project),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -445,10 +419,19 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Quadro de referência', style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5)),
+                        const Text(
+                          'Quadro de referência',
+                          style: TextStyle(
+                            color: MoldScanColors.textSecondary,
+                            fontSize: 14.5,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         ListenableBuilder(
-                          listenable: Listenable.merge([_boardWidthController, _boardHeightController]),
+                          listenable: Listenable.merge([
+                            _boardWidthController,
+                            _boardHeightController,
+                          ]),
                           builder: (context, _) => Text(
                             '${_boardWidthController.text} × ${_boardHeightController.text} cm',
                             style: MoldScanType.headline(28),
@@ -459,9 +442,15 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                   ),
                   Text(
                     _settingsOpen ? 'Fechar' : 'Alterar',
-                    style: const TextStyle(color: MoldScanColors.accentAlt, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      color: MoldScanColors.accentAlt,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  Icon(_settingsOpen ? Icons.expand_less : Icons.expand_more, color: MoldScanColors.accentAlt),
+                  Icon(
+                    _settingsOpen ? Icons.expand_less : Icons.expand_more,
+                    color: MoldScanColors.accentAlt,
+                  ),
                 ],
               ),
             ),
@@ -480,8 +469,13 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             Expanded(
                               child: TextField(
                                 controller: _boardWidthController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(labelText: 'Largura (cm)'),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Largura (cm)',
+                                ),
                                 onChanged: (_) => setState(() {}),
                               ),
                             ),
@@ -489,8 +483,13 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             Expanded(
                               child: TextField(
                                 controller: _boardHeightController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                decoration: const InputDecoration(labelText: 'Altura (cm)'),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Altura (cm)',
+                                ),
                                 onChanged: (_) => setState(() {}),
                               ),
                             ),
@@ -501,19 +500,31 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                           'Use as medidas reais do quadro como ele aparece na foto: a largura é o lado '
                           'horizontal. O quadro da loja tem 250 × 150 cm. Com medidas erradas, todas '
                           'as medidas saem erradas.',
-                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
+                          style: TextStyle(
+                            color: MoldScanColors.textSecondary,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         OutlinedButton.icon(
                           onPressed: _generatingBoard ? null : _downloadBoard,
                           icon: const Icon(Icons.download_outlined, size: 18),
-                          label: Text(_generatingBoard ? 'Gerando...' : 'Baixar marcadores em PDF'),
+                          label: Text(
+                            _generatingBoard
+                                ? 'Gerando...'
+                                : 'Baixar marcadores em PDF',
+                          ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
                           '4 folhas A4, uma por marcador. Imprima a 100%, recorte na linha tracejada e cole '
                           'nos cantos do quadro, com a borda do papel a 50 mm das bordas.',
-                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
+                          style: TextStyle(
+                            color: MoldScanColors.textSecondary,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
                         ),
                       ],
                     ),

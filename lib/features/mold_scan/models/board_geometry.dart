@@ -19,8 +19,26 @@ class BoardGeometry {
   /// Distance from the board edge to the center of a marker.
   static const markerInsetMm = MoldBoardSpec.markerMarginMm + MoldBoardSpec.markerSizeMm / 2;
 
-  /// Marker centers must be far enough apart for the perspective math to
-  /// be meaningful.
+  /// Largest board area accepted. At 1 px/mm the photo is flattened into one
+  /// pixel per mm², and the buffers needed grow with the area: 8 m² (4 x 2 m)
+  /// stays well inside a phone browser's memory, 64 m² does not.
+  static const maxAreaMm2 = 8e6;
+
+  /// Marker centers must be far enough apart for the perspective math to be
+  /// meaningful, and the board small enough to process.
   bool get isUsable =>
-      widthMm >= 4 * markerInsetMm && heightMm >= 4 * markerInsetMm && widthMm <= 8000 && heightMm <= 8000;
+      widthMm >= 4 * markerInsetMm && heightMm >= 4 * markerInsetMm && widthMm * heightMm <= maxAreaMm2;
+
+  /// Reads the two size fields the user types, in cm (comma or dot decimals).
+  /// Returns null when a value is not a number or the board is not [isUsable].
+  static BoardGeometry? fromCentimeters(String width, String height) {
+    double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+    final w = parse(width), h = parse(height);
+    if (w == null || h == null) return null;
+    final board = BoardGeometry(widthMm: w * 10, heightMm: h * 10);
+    return board.isUsable ? board : null;
+  }
+
+  static const sizeHint = 'Informe a largura e a altura reais do quadro, em cm: cada lado a partir de 60 cm '
+      'e a área de até 8 m² (por exemplo, 400 × 200 cm).';
 }

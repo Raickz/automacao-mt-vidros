@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mt_vidros_app/features/measurement/services/homography.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/polyline_simplifier.dart';
 
 void main() {
