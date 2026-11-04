@@ -11,6 +11,14 @@ class BoardGeometry {
 
   const BoardGeometry({required this.widthMm, required this.heightMm});
 
+  /// Board whose marker centers are [spanXMm] x [spanYMm] apart.
+  factory BoardGeometry.fromSpansMm(double spanXMm, double spanYMm) =>
+      BoardGeometry(widthMm: spanXMm + 2 * markerInsetMm, heightMm: spanYMm + 2 * markerInsetMm);
+
+  /// Distance between marker centers, horizontally and vertically.
+  double get spanXMm => widthMm - 2 * markerInsetMm;
+  double get spanYMm => heightMm - 2 * markerInsetMm;
+
   static const standard = BoardGeometry(
     widthMm: MoldBoardSpec.boardWidthMm,
     heightMm: MoldBoardSpec.boardHeightMm,
@@ -49,7 +57,7 @@ class BoardGeometry {
     double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
     final w = parse(horizontal), h = parse(vertical);
     if (w == null || h == null) return null;
-    final board = BoardGeometry(widthMm: w * 10 + 2 * markerInsetMm, heightMm: h * 10 + 2 * markerInsetMm);
+    final board = BoardGeometry.fromSpansMm(w * 10, h * 10);
     return board.isUsable ? board : null;
   }
 

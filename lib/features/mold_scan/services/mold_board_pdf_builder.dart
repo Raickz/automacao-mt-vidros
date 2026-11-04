@@ -58,9 +58,9 @@ class MoldBoardPdfBuilder {
               ),
               pw.SizedBox(height: 3),
               pw.Text(
-                'Depois de colar os 4 marcadores, meca no quadro a distancia entre os quadrados '
-                'pretos (do canto esquerdo de um ao canto esquerdo do outro) e digite no app: '
-                'essa medida define a escala de tudo.',
+                'Cole reto. Se o molde fica em pe apoiado no chao, cole os 2 marcadores de baixo com o '
+                'papel encostado no chao. O app mede a escala pelo tamanho deste quadrado: confira com '
+                'uma regua se ele saiu com 18,0 cm.',
                 style: const pw.TextStyle(fontSize: 9),
               ),
               pw.SizedBox(height: 8),

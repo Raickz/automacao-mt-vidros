@@ -53,11 +53,23 @@ Uint8List closeGaps(Uint8List mask, int w, int h, int r) =>
 /// touching the piece): keeps only pixels within [r] of the shape that
 /// survives an opening. Reconstructing like this, instead of just opening,
 /// keeps the sharp corners of the piece intact.
-void dropSlivers(Uint8List mask, int w, int h, int r) {
+///
+/// Within [edgeZone] pixels of the image border only 1 pixel is restored: a
+/// thin strip of floor or table lying against the ignored border, touching a
+/// piece that stands on it, would otherwise be restored for [r] pixels on each
+/// side of the piece and widen it.
+void dropSlivers(Uint8List mask, int w, int h, int r, {int edgeZone = 0}) {
   final opened = boxMorph(boxMorph(mask, w, h, r, erode: true), w, h, r, erode: false);
   final near = boxMorph(opened, w, h, r, erode: false);
-  for (var i = 0; i < mask.length; i++) {
-    if (mask[i] != 0 && near[i] == 0) mask[i] = 0;
+  final tight = edgeZone > 0 ? boxMorph(opened, w, h, 1, erode: false) : near;
+  for (var y = 0; y < h; y++) {
+    final edgeRow = y < edgeZone || y >= h - edgeZone;
+    for (var x = 0; x < w; x++) {
+      final i = y * w + x;
+      if (mask[i] == 0) continue;
+      final atEdge = edgeRow || x < edgeZone || x >= w - edgeZone;
+      if ((atEdge ? tight : near)[i] == 0) mask[i] = 0;
+    }
   }
 }
 

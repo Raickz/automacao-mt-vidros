@@ -94,7 +94,7 @@ class ContourExtractor {
     final closeR = (closingRadiusMm * pixelsPerMm).round();
     if (closeR > 0) mask = closeGaps(mask, w, h, closeR);
     final sliverR = (sliverRadiusMm * pixelsPerMm).round();
-    if (sliverR > 0) dropSlivers(mask, w, h, sliverR);
+    if (sliverR > 0) dropSlivers(mask, w, h, sliverR, edgeZone: band > 0 ? band + sliverR + 2 : 0);
 
     final largest = labelLargest(mask, w, h);
     if (largest.bestCount < minAreaPx) {
@@ -110,20 +110,20 @@ class ContourExtractor {
       h,
     );
 
-    var touches = false;
+    final touched = <String>{};
     if (band > 0) {
       for (final p in boundary) {
-        if (p.$1 <= band + 1 || p.$2 <= band + 1 || p.$1 >= w - band - 2 || p.$2 >= h - band - 2) {
-          touches = true;
-          break;
-        }
+        if (p.$2 <= band + 1) touched.add('em cima');
+        if (p.$2 >= h - band - 2) touched.add('embaixo');
+        if (p.$1 <= band + 1) touched.add('à esquerda');
+        if (p.$1 >= w - band - 2) touched.add('à direita');
       }
     }
 
     return ContourResult(
-      contourMm: _toMillimetersOutward(boundary, pixelsPerMm),
+      contourMm: boundaryToMillimeters(boundary, pixelsPerMm),
       areaPx: largest.bestCount,
-      touchesIgnoredBorder: touches,
+      touchedSides: [...touched],
     );
   }
 
@@ -213,7 +213,7 @@ class ContourExtractor {
   /// half a pixel *inside* the true edge — measuring through them would
   /// shrink every dimension by a full pixel. Push each point half a pixel
   /// outward along the local normal to compensate.
-  static List<Point2D> _toMillimetersOutward(List<(int, int)> boundary, double pixelsPerMm) {
+  static List<Point2D> boundaryToMillimeters(List<(int, int)> boundary, double pixelsPerMm) {
     final n = boundary.length;
     if (n < 8) {
       return [for (final p in boundary) Point2D((p.$1 + 0.5) / pixelsPerMm, (p.$2 + 0.5) / pixelsPerMm)];

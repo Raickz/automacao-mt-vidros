@@ -1,3 +1,5 @@
+import 'package:qr/qr.dart';
+
 import '../services/homography.dart';
 import '../services/contour_extractor.dart';
 import 'board_geometry.dart';
@@ -22,6 +24,14 @@ extension BoardCornerX on BoardCorner {
         return 'MTV1B:BL';
     }
   }
+
+  /// Modules per side of the printed QR (same settings as the PDF).
+  int get moduleCount =>
+      QrImage(QrCode.fromData(data: payload, errorCorrectLevel: QrErrorCorrectLevel.H)).moduleCount;
+
+  /// Distance between the centers of two finder patterns of the printed code:
+  /// they sit 3.5 modules in from each side.
+  double finderSpanMm(double printedSizeMm) => printedSizeMm * (moduleCount - 7) / moduleCount;
 
   static BoardCorner? fromPayload(String payload) {
     for (final corner in BoardCorner.values) {

@@ -67,13 +67,26 @@ void main() {
       expect(pose.heightMm, closeTo(2800, 2800 * 0.10));
     });
 
-    test('desconta a espessura só quando há pose e espessura', () {
+    test('espessura: com a câmera no meio, o molde todo encolhe na direção dela', () {
+      const pose = CameraPose(nadirMm: Point2D(1000, 500), heightMm: 2500);
+      final fixed = extent(CameraPoseEstimator.correctForThickness(rect(0, 0, 2000, 1000), pose, 25));
+      // k = 2500 / 2475: the top face is 1% bigger than the base.
+      expect(fixed.width, closeTo(2000 * 2475 / 2500, 1.5));
+      expect(fixed.height, closeTo(1000 * 2475 / 2500, 1.5));
+    });
+
+    test('espessura: o lado virado para a câmera (onde aparece a lateral) não é encolhido', () {
+      // Camera far to the right: the right edge is the base, only the left edge is the enlarged top.
+      const pose = CameraPose(nadirMm: Point2D(3000, 250), heightMm: 2500);
+      final fixed = CameraPoseEstimator.correctForThickness(rect(0, 0, 1000, 500), pose, 25);
+      final xs = fixed.map((p) => p.x);
+      expect(xs.reduce(max), closeTo(1000, 1.5));
+      expect(xs.reduce(min), closeTo(3000 - 3000 * 2475 / 2500, 1.5));
+    });
+
+    test('espessura: sem pose ou sem espessura, nada muda', () {
       const pose = CameraPose(nadirMm: Point2D(1000, 500), heightMm: 2500);
       final contour = rect(0, 0, 2000, 1000);
-      final fixed = CameraPoseEstimator.correctForThickness(contour, pose, 25);
-      // 25mm at 2.5m = 1%: the far corner (2000,1000) is 1000/500mm from the nadir.
-      expect(fixed[1].x, closeTo(1000 + 1000 * 0.99, 1e-6));
-      expect(fixed[2].y, closeTo(500 + 500 * 0.99, 1e-6));
       expect(identical(CameraPoseEstimator.correctForThickness(contour, null, 25), contour), isTrue);
       expect(identical(CameraPoseEstimator.correctForThickness(contour, pose, 0), contour), isTrue);
       expect(identical(CameraPoseEstimator.correctForThickness(contour, pose, null), contour), isTrue);
@@ -177,6 +190,84 @@ void main() {
         thicknessMm: 35,
         tolCorrected: 10,
       );
+    }, timeout: timeout);
+  });
+
+  group('escala medida pelos próprios QR (como no teste com marcadores a ~168 × 126 cm)', () {
+    const timeout = Timeout(Duration(minutes: 4));
+    final realBoard = BoardGeometry.fromSpansMm(1680, 1260);
+    final camera = CameraRig(
+      width: 2400, height: 1800, focalRatio: 0.72, x: 1000, y: 800, heightMm: 2200, aimX: 990, aimY: 780,
+    );
+
+    Future<MoldScanResult> scan(
+      List<Point2D> mold, {
+      BoardGeometry? typed,
+      double printed = 180,
+      double rendered = 180,
+      double floorMm = 0,
+    }) {
+      final scene = SyntheticScene(
+        width: camera.width,
+        height: camera.height,
+        boardPixelCorners: camera.boardCorners(realBoard),
+        geometry: realBoard,
+        cameraNadir: camera.nadirMm,
+        cameraHeightMm: camera.heightMm,
+      );
+      final bytes = scene.renderJpg(
+        SceneConfig(
+          moldPolygonMm: mold,
+          boardColor: (150, 152, 148),
+          moldColor: (150, 105, 65),
+          noiseSigma: 3,
+          lightGradient: 0.2,
+          thicknessMm: 4,
+          markerSizeMm: rendered,
+          tableBandMm: floorMm,
+        ),
+      );
+      return MoldScanPipeline.run(bytes, board: typed, printedMarkerMm: printed);
+    }
+
+    void expectSize(MoldScanResult r, List<Point2D> mold, String name, {double tol = 4}) {
+      final got = extent(CameraPoseEstimator.correctForThickness(r.contourMm, r.cameraPose, 4));
+      final want = extent(mold);
+      print('  $name: real ${want.width.round()} x ${want.height.round()} | medido '
+          '${got.width.toStringAsFixed(1)} x ${got.height.toStringAsFixed(1)} | marcadores '
+          '${(r.board.spanXMm / 10).toStringAsFixed(1)} x ${(r.board.spanYMm / 10).toStringAsFixed(1)} cm');
+      expect(got.width, closeTo(want.width, tol), reason: '$name largura');
+      expect(got.height, closeTo(want.height, tol), reason: '$name altura');
+    }
+
+    final piece = rect(770, 300, 450, 1000);
+
+    test('sem digitar nada: a distância entre os marcadores sai da própria foto', () async {
+      final r = await scan(piece);
+      expect(r.scaleFromMarkers, isTrue);
+      expect(r.board.spanXMm, closeTo(1680, 1680 * 0.006));
+      expect(r.board.spanYMm, closeTo(1260, 1260 * 0.006));
+      expectSize(r, piece, 'automático');
+    }, timeout: timeout);
+
+    test('distância digitada errada (200 × 150): usa a dos QR e avisa', () async {
+      final r = await scan(piece, typed: BoardGeometry.fromSpansMm(2000, 1500));
+      expect(r.scaleFromMarkers, isTrue);
+      expect(r.warnings.join(' '), contains('não bate'));
+      expectSize(r, piece, 'digitado errado');
+    }, timeout: timeout);
+
+    test('impressão saiu a 97%: informando o quadrado de 17,46 cm a medida fica certa', () async {
+      final r = await scan(piece, printed: 174.6, rendered: 174.6);
+      expectSize(r, piece, 'impressão 97%');
+    }, timeout: timeout);
+
+    test('molde em pé no chão, rente aos QR de baixo: não é cortado', () async {
+      // Bottom papers flush with the floor: the floor starts at the paper edge,
+      // 50mm above the virtual board edge, and the piece stands on it.
+      final standing = rect(770, realBoard.heightMm - 50 - 1000, 450, 1000);
+      final r = await scan(standing, floorMm: 50);
+      expectSize(r, standing, 'em pé no chão');
     }, timeout: timeout);
   });
 }

@@ -26,6 +26,8 @@ class SceneConfig {
   final (int, int, int) grooveColor;
   final double tableBandMm;
   final double thicknessMm;
+  final (int, int, int) sideColor;
+  final double markerSizeMm;
   final (int, int, int) tableColor;
 
   const SceneConfig({
@@ -44,6 +46,8 @@ class SceneConfig {
     this.grooveColor = (75, 55, 40),
     this.tableBandMm = 0,
     this.thicknessMm = 0,
+    this.sideColor = (105, 75, 50),
+    this.markerSizeMm = MoldBoardSpec.markerSizeMm,
     this.tableColor = (62, 36, 22),
   });
 }
@@ -131,7 +135,7 @@ class SyntheticScene {
 
     final boardW = geometry.widthMm;
     final boardH = geometry.heightMm;
-    const size = MoldBoardSpec.markerSizeMm;
+    final size = cfg.markerSizeMm;
     const quiet = 10.0;
 
     final qrs = <BoardCorner, QrImage>{};
@@ -207,6 +211,13 @@ class SyntheticScene {
             r = cfg.moldColor.$1.toDouble();
             g = cfg.moldColor.$2.toDouble();
             b = cfg.moldColor.$3.toDouble();
+          } else if (cfg.thicknessMm > 0 && mx >= minX && mx <= maxX && my >= minY && my <= maxY &&
+              _inPolygon(mx, my, poly)) {
+            // Base outline not covered by the top face: a visible side face,
+            // darker (it faces sideways, away from the light).
+            r = cfg.sideColor.$1.toDouble();
+            g = cfg.sideColor.$2.toDouble();
+            b = cfg.sideColor.$3.toDouble();
           }
 
           for (final gr in cfg.grooves) {

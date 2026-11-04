@@ -3,14 +3,16 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 
-import 'homography.dart';
 import '../models/board_corner.dart';
 import '../models/board_geometry.dart';
+import '../models/mold_board_spec.dart';
 import 'background_model.dart';
 import 'board_marker_detector.dart';
 import 'camera_pose.dart';
 import 'contour_extractor.dart';
+import 'homography.dart';
 import 'image_rectifier.dart';
+import 'marker_scale.dart';
 import 'polyline_simplifier.dart';
 
 class MoldScanException implements Exception {
@@ -33,11 +35,19 @@ class MoldScanResult {
   /// not be worked out.
   final CameraPose? cameraPose;
 
+  /// The marker spacing actually used for the scale.
+  final BoardGeometry board;
+
+  /// True when that spacing was measured from the QR codes in the photo.
+  final bool scaleFromMarkers;
+
   const MoldScanResult({
     required this.contourMm,
+    required this.board,
     this.warnings = const [],
     this.previewPng,
     this.cameraPose,
+    this.scaleFromMarkers = false,
   });
 }
 
@@ -51,11 +61,15 @@ class MoldScanPipeline {
   // Photos larger than this are downscaled first: a 2.5m board at 3200px is
   // still >1px/mm, and 12-50MP decodes/rectifies far too slowly in Dart.
   static const maxPhotoSide = 3200;
-  // The outer strip of the rectified board is ignored: markers sit 50mm in
-  // from the board edge, so anything out there is wall/floor/table, and a
-  // couple of millimeters of marker position error would otherwise show it as
-  // a huge "object" hugging the whole border.
-  static const ignoreBorderMm = 45.0;
+  // Outside the marker papers is not board: wall, floor, a table. The cut
+  // papers reach 100mm out from each marker center and the virtual board edge
+  // is 150mm out, so ignoring the outer 50mm stops exactly at the paper edge.
+  // With the bottom papers flush with the floor, a mold standing on the floor
+  // ends there too and is measured whole, with no strip of floor attached.
+  static const ignoreBorderMm = 50.0;
+  // Above this disagreement, a typed marker spacing is overruled by the one
+  // measured from the QR codes.
+  static const maxManualDisagreement = 0.025;
   static const previewWidth = 1000;
   static const _cornerOrder = [
     BoardCorner.topLeft,
@@ -64,13 +78,20 @@ class MoldScanPipeline {
     BoardCorner.bottomLeft,
   ];
 
+  /// [board] is the marker spacing typed by the user, or null to measure it
+  /// from the QR codes. [printedMarkerMm] is the side of the black square as
+  /// printed (180 when the PDF was printed at 100%).
   static Future<MoldScanResult> run(
     Uint8List bytes, {
-    BoardGeometry board = BoardGeometry.standard,
+    BoardGeometry? board,
+    double printedMarkerMm = MoldBoardSpec.markerSizeMm,
     Future<void> Function(String stage)? onStage,
   }) async {
-    if (!board.isUsable) {
-      throw const MoldScanException(BoardGeometry.sizeHint);
+    if (board != null && !board.isUsable) {
+      throw const MoldScanException(BoardGeometry.spanHint);
+    }
+    if (printedMarkerMm < 120 || printedMarkerMm > 240) {
+      throw const MoldScanException('Informe o lado do quadrado preto impresso, em cm (o normal é 18,0).');
     }
 
     Future<void> stage(String s) async {
@@ -101,28 +122,55 @@ class MoldScanPipeline {
     }
 
     await stage('Procurando os 4 marcadores do quadro...');
-    final corners = BoardMarkerDetector().detectFromImage(photo);
-    final missing = _cornerOrder.where((c) => !corners.containsKey(c)).toList();
+    final markers = BoardMarkerDetector().detectFromImage(photo);
+    final missing = _cornerOrder.where((c) => !markers.containsKey(c)).toList();
     if (missing.isNotEmpty) {
       throw MoldScanException(
-        'Encontrei só ${corners.length} dos 4 marcadores do quadro. Confira se os 4 estão '
+        'Encontrei só ${markers.length} dos 4 marcadores do quadro. Confira se os 4 estão '
         'inteiros e nítidos na foto, sem reflexo, e se a foto não foi comprimida '
         '(use o arquivo original, não o enviado por WhatsApp).',
       );
     }
+    final srcPixels = [for (final c in _cornerOrder) markers[c]!.center];
+    _checkOrder(srcPixels);
 
-    final srcPixels = [for (final c in _cornerOrder) corners[c]!];
-    _validateGeometry(srcPixels, board, warnings);
+    await stage('Medindo a escala pelos marcadores...');
+    var geometry = board ?? BoardGeometry.standard;
+    final measured = _measureSpacing(photo, markers, srcPixels, geometry, printedMarkerMm);
+    var scaleFromMarkers = false;
+    if (measured == null) {
+      if (board == null) {
+        throw const MoldScanException(
+          'Não consegui medir a escala pelos marcadores. Confira se os 4 estão nítidos, retos e da mesma '
+          'impressão, ou informe a distância entre eles na configuração da escala.',
+        );
+      }
+      warnings.add('Não consegui conferir a escala pelos QR; usei a distância digitada.');
+    } else if (board == null) {
+      geometry = measured;
+      scaleFromMarkers = true;
+    } else {
+      final dx = board.spanXMm / measured.spanXMm - 1, dy = board.spanYMm / measured.spanYMm - 1;
+      if (dx.abs() > maxManualDisagreement || dy.abs() > maxManualDisagreement) {
+        warnings.add(
+          'A distância digitada entre os marcadores (${_cm(board.spanXMm)} × ${_cm(board.spanYMm)} cm) não '
+          'bate com o tamanho dos QR na foto, que indica ${_cm(measured.spanXMm)} × ${_cm(measured.spanYMm)} cm. '
+          'Usei a medida dos QR. Confira a trena e se a impressão saiu a 100% (quadrado preto de 18,0 cm).',
+        );
+        geometry = measured;
+        scaleFromMarkers = true;
+      }
+    }
+    final pixelToMm = _homography(srcPixels, geometry);
+    _checkResolution(srcPixels, geometry, warnings);
 
     await stage('Corrigindo a perspectiva...');
-    final dstMm = [for (final c in _cornerOrder) c.knownPositionMm(board)];
-    final pixelToMm = Homography.fromCorrespondences(srcPixels, dstMm);
     final pose = CameraPoseEstimator.estimate(pixelToMm: pixelToMm, width: photo.width, height: photo.height);
     final rectified = ImageRectifier.rectify(
       source: photo,
       pixelToMm: pixelToMm,
-      widthMm: board.widthMm,
-      heightMm: board.heightMm,
+      widthMm: geometry.widthMm,
+      heightMm: geometry.heightMm,
       pixelsPerMm: pixelsPerMm,
     );
 
@@ -132,14 +180,14 @@ class MoldScanPipeline {
       final background = BackgroundModel.estimate(
         image: rectified,
         pixelsPerMm: pixelsPerMm,
-        boardWidthMm: board.widthMm,
-        boardHeightMm: board.heightMm,
+        boardWidthMm: geometry.widthMm,
+        boardHeightMm: geometry.heightMm,
       );
       extracted = ContourExtractor.extract(
         image: rectified,
         background: background,
         pixelsPerMm: pixelsPerMm,
-        excludedRegionsMm: [for (final c in BoardCorner.values) c.markerExclusionRectMm(board)],
+        excludedRegionsMm: [for (final c in BoardCorner.values) c.markerExclusionRectMm(geometry)],
         ignoreBorderMm: ignoreBorderMm,
       );
     } on ContourExtractionException catch (e) {
@@ -158,18 +206,53 @@ class MoldScanPipeline {
         'quadro e bem iluminado, sem sombras fortes.',
       );
     }
-    if (extracted.touchesIgnoredBorder) {
+    if (extracted.touchedSides.isNotEmpty) {
       warnings.add(
-        'O molde chega perto da borda do quadro (últimos ${ignoreBorderMm.toStringAsFixed(0)} mm). '
-        'O contorno pode estar cortado — afaste o molde da borda e refaça a foto.',
+        'O molde encosta no limite da área dos marcadores (${extracted.touchedSides.join(', ')}). '
+        'Tudo que passa além dos papéis dos QR fica de fora da medida. Se o molde está só apoiado no chão, '
+        'rente aos QR de baixo, a medida está certa.',
       );
     }
 
     await stage('Montando a prévia...');
     final preview = _buildPreview(rectified, contour);
 
-    return MoldScanResult(contourMm: contour, warnings: warnings, previewPng: preview, cameraPose: pose);
+    return MoldScanResult(
+      contourMm: contour,
+      board: geometry,
+      warnings: warnings,
+      previewPng: preview,
+      cameraPose: pose,
+      scaleFromMarkers: scaleFromMarkers,
+    );
   }
+
+  /// The marker spacing measured from the QR codes themselves: a coarse step
+  /// from the finder centers, then a fine one from the black squares' edges.
+  /// [guess] only needs to be roughly right. Null if it can't be measured.
+  static BoardGeometry? _measureSpacing(
+    img.Image photo,
+    Map<BoardCorner, DetectedMarker> markers,
+    List<Point2D> srcPixels,
+    BoardGeometry guess,
+    double printedMarkerMm,
+  ) {
+    final coarse = MarkerScale.measure(markers, _homography(srcPixels, guess), printedMarkerMm);
+    if (coarse == null) return null;
+    var g = BoardGeometry.fromSpansMm(guess.spanXMm / coarse.$1, guess.spanYMm / coarse.$2);
+    if (!g.isUsable) return null;
+    final fine = MarkerScale.refineWithEdges(photo, _homography(srcPixels, g), g, markers, printedMarkerMm);
+    if (fine != null) {
+      final refined = BoardGeometry.fromSpansMm(g.spanXMm / fine.$1, g.spanYMm / fine.$2);
+      if (refined.isUsable) g = refined;
+    }
+    return g;
+  }
+
+  static String _cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
+
+  static Homography _homography(List<Point2D> srcPixels, BoardGeometry board) =>
+      Homography.fromCorrespondences(srcPixels, [for (final c in _cornerOrder) c.knownPositionMm(board)]);
 
   static Uint8List _buildPreview(img.Image rectified, List<Point2D> contour) {
     final scale = previewWidth / rectified.width;
@@ -198,7 +281,7 @@ class MoldScanPipeline {
   /// quadrilateral in TL, TR, BR, BL order. Anything else means a marker is
   /// stuck on the wrong corner (or the photo is mirrored), which would
   /// silently produce a distorted, wrong-size contour.
-  static void _validateGeometry(List<Point2D> p, BoardGeometry board, List<String> warnings) {
+  static void _checkOrder(List<Point2D> p) {
     for (var i = 0; i < 4; i++) {
       final a = p[i], b = p[(i + 1) % 4], c = p[(i + 2) % 4];
       final cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
@@ -210,27 +293,12 @@ class MoldScanPipeline {
         );
       }
     }
+  }
 
+  static void _checkResolution(List<Point2D> p, BoardGeometry board, List<String> warnings) {
     double dist(Point2D a, Point2D b) => sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
-    final spanX = board.widthMm - 2 * BoardGeometry.markerInsetMm;
-    final spanY = board.heightMm - 2 * BoardGeometry.markerInsetMm;
-    final pxPerMmX = (dist(p[0], p[1]) + dist(p[3], p[2])) / 2 / spanX;
-    final pxPerMmY = (dist(p[0], p[3]) + dist(p[1], p[2])) / 2 / spanY;
-
-    // A photographed board is never stretched by more than perspective can
-    // explain: if horizontal and vertical scales differ a lot, the board
-    // size typed in doesn't match the real one.
-    final ratio = pxPerMmX / pxPerMmY;
-    final mismatch = 'As proporções do quadro na foto não batem com as medidas informadas '
-        '(${(board.widthMm / 10).toStringAsFixed(0)} x ${(board.heightMm / 10).toStringAsFixed(0)} cm). '
-        'Confira a largura e a altura reais do quadro (largura = lado horizontal na foto).';
-    if (ratio > 1.8 || ratio < 1 / 1.8) {
-      throw MoldScanException('$mismatch Com medidas erradas todas as medidas sairiam erradas.');
-    }
-    if (ratio > 1.35 || ratio < 1 / 1.35) {
-      warnings.add('$mismatch Se estiverem certas, tire a foto mais de frente para o quadro.');
-    }
-
+    final pxPerMmX = (dist(p[0], p[1]) + dist(p[3], p[2])) / 2 / board.spanXMm;
+    final pxPerMmY = (dist(p[0], p[3]) + dist(p[1], p[2])) / 2 / board.spanYMm;
     final pxPerMm = min(pxPerMmX, pxPerMmY);
     if (pxPerMm < 0.4) {
       warnings.add(

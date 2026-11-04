@@ -20,7 +20,10 @@ class ContourExtractionException implements Exception {
 class ContourResult {
   final List<Point2D> contourMm;
   final int areaPx;
-  final bool touchesIgnoredBorder;
 
-  const ContourResult({required this.contourMm, required this.areaPx, required this.touchesIgnoredBorder});
+  /// Sides of the measured area the piece reaches ('em cima', 'embaixo',
+  /// 'à esquerda', 'à direita'): anything beyond them was cut off.
+  final List<String> touchedSides;
+
+  const ContourResult({required this.contourMm, required this.areaPx, this.touchedSides = const []});
 }

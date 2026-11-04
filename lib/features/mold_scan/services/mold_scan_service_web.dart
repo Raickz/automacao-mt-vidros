@@ -10,9 +10,10 @@ class MoldScanService {
   /// lets the screen show progress between the heavy steps.
   Future<MoldScanResult> scanContourFromBytes(
     Uint8List bytes, {
-    BoardGeometry board = BoardGeometry.standard,
+    BoardGeometry? board,
+    double printedMarkerMm = 180,
     Future<void> Function(String stage)? onStage,
   }) {
-    return MoldScanPipeline.run(bytes, board: board, onStage: onStage);
+    return MoldScanPipeline.run(bytes, board: board, printedMarkerMm: printedMarkerMm, onStage: onStage);
   }
 }

@@ -199,9 +199,12 @@ void main() {
     expectMold(await runPipeline(bytes, board: portrait), door, tol: 3);
   }, timeout: timeout);
 
-  test('medidas do quadro erradas (informou 250 x 150 num quadro vertical): erro claro', () async {
+  test('medidas do quadro erradas (informou 250 x 150 num quadro vertical): os QR corrigem e avisam', () async {
     final bytes = portraitScene.renderJpg(doorOnGrayWall);
-    await expectLater(runPipeline(bytes), throwsA(isA<MoldScanException>()));
+    final result = await MoldScanPipeline.run(bytes, board: BoardGeometry.standard);
+    expect(result.scaleFromMarkers, isTrue);
+    expect(result.warnings.join(' '), contains('não bate'));
+    expectMold(result.contourMm, door, tol: 4);
   }, timeout: timeout);
 
   // Second real-world test: the same door lying down, covering most of the

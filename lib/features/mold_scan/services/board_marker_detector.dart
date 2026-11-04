@@ -15,11 +15,24 @@ import '../models/board_corner.dart';
 /// zxing2 only decodes one QR per call, so markers are found one at a time:
 /// decode, record, paint the found marker over, decode again. Each marker's
 /// payload says which board corner it is (see [BoardCorner]).
+/// One marker found in the photo, in photo pixels: its center and the
+/// centers of its 3 finder patterns (the big squares in the QR's corners).
+/// The finders are a ruler of known length — (n - 7) modules of a printed
+/// 180mm code — which is what lets the scan check its own scale.
+class DetectedMarker {
+  final Point2D center;
+  final Point2D topLeft;
+  final Point2D topRight;
+  final Point2D bottomLeft;
+
+  const DetectedMarker({required this.center, required this.topLeft, required this.topRight, required this.bottomLeft});
+}
+
 class BoardMarkerDetector {
   static const _maxWorkSide = 2400;
 
-  Map<BoardCorner, Point2D> detectFromImage(img.Image image) {
-    final found = <BoardCorner, Point2D>{};
+  Map<BoardCorner, DetectedMarker> detectFromImage(img.Image image) {
+    final found = <BoardCorner, DetectedMarker>{};
 
     final side = max(image.width, image.height);
     final scale = side > _maxWorkSide ? _maxWorkSide / side : 1.0;
@@ -62,7 +75,7 @@ class BoardMarkerDetector {
     double pointScale,
     double offsetX,
     double offsetY,
-    Map<BoardCorner, Point2D> found,
+    Map<BoardCorner, DetectedMarker> found,
   ) {
     final w = image.width, h = image.height;
     final rgb = image.getBytes(order: img.ChannelOrder.rgb);
@@ -83,13 +96,19 @@ class BoardMarkerDetector {
       // midpoint of bottomLeft and topRight is the exact geometric center of
       // the code regardless of whether an alignment pattern was found —
       // unlike an average of all points, whose bias changes with that.
-      final bl = points[0], tr = points[2];
+      final bl = points[0], tl = points[1], tr = points[2];
       final cx = (bl.x + tr.x) / 2;
       final cy = (bl.y + tr.y) / 2;
 
       final corner = BoardCornerX.fromPayload(result.text);
       if (corner != null && !found.containsKey(corner)) {
-        found[corner] = Point2D(offsetX + cx * pointScale, offsetY + cy * pointScale);
+        Point2D toPhoto(double x, double y) => Point2D(offsetX + x * pointScale, offsetY + y * pointScale);
+        found[corner] = DetectedMarker(
+          center: toPhoto(cx, cy),
+          topLeft: toPhoto(tl.x, tl.y),
+          topRight: toPhoto(tr.x, tr.y),
+          bottomLeft: toPhoto(bl.x, bl.y),
+        );
       }
 
       final radius = sqrt(pow(tr.x - bl.x, 2) + pow(tr.y - bl.y, 2)) / 2 * 1.9;

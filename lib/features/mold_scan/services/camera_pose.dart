@@ -1,7 +1,11 @@
 import 'dart:math';
+import 'dart:typed_data';
 
 import '../models/mold_board_spec.dart';
+import 'contour_extractor.dart';
 import 'homography.dart';
+import 'mask_ops.dart';
+import 'polyline_simplifier.dart';
 
 /// Where the camera was when the photo was taken, in board millimeters: the
 /// point of the board plane directly below the camera, and its height above
@@ -81,25 +85,84 @@ class CameraPoseEstimator {
     return CameraPose(nadirMm: Point2D(cxw, cyw), heightMm: h);
   }
 
-  /// Moves the outline of the mold's top face down to the board plane: every
-  /// point goes back toward the nadir by (h - thickness) / h. With no pose or
-  /// no thickness the outline is returned untouched.
-  static List<Point2D> correctForThickness(
-    List<Point2D> contour,
-    CameraPose? pose,
-    double? thicknessMm,
-  ) {
-    if (pose == null ||
-        thicknessMm == null ||
-        thicknessMm <= 0 ||
-        thicknessMm >= pose.heightMm / 2) {
+  /// Recovers the mold's real outline (its base, on the board) from the
+  /// silhouette seen in the photo.
+  ///
+  /// Seen from the camera, a mold of thickness t shows its top face scaled
+  /// away from the point under the camera by k = h / (h - t), plus the side
+  /// faces between top and base. So on the side facing away from the camera
+  /// the silhouette ends at the (enlarged) top face, and on the side facing
+  /// the camera it ends at the base. Both cases are undone by keeping only the
+  /// silhouette points that, scaled out by k, are still inside the silhouette:
+  /// base = silhouette ∩ S⁻¹(silhouette). Simply shrinking everything would
+  /// over-correct the camera side.
+  ///
+  /// Done on a 1px/mm raster of the outline. Without pose or thickness the
+  /// outline is returned untouched.
+  static List<Point2D> correctForThickness(List<Point2D> contour, CameraPose? pose, double? thicknessMm) {
+    if (pose == null || thicknessMm == null || thicknessMm <= 0 || thicknessMm >= pose.heightMm / 2) {
       return contour;
     }
-    final k = (pose.heightMm - thicknessMm) / pose.heightMm;
-    final n = pose.nadirMm;
-    return [
-      for (final p in contour)
-        Point2D(n.x + (p.x - n.x) * k, n.y + (p.y - n.y) * k),
+    if (contour.length < 3) return contour;
+    final k = pose.heightMm / (pose.heightMm - thicknessMm);
+    final nx = pose.nadirMm.x, ny = pose.nadirMm.y;
+
+    final x0 = contour.map((p) => p.x).reduce(min).floor() - 3;
+    final y0 = contour.map((p) => p.y).reduce(min).floor() - 3;
+    final w = contour.map((p) => p.x).reduce(max).ceil() + 3 - x0;
+    final h = contour.map((p) => p.y).reduce(max).ceil() + 3 - y0;
+    final silhouette = _rasterize(contour, x0, y0, w, h);
+
+    final base = Uint8List(w * h);
+    for (var y = 0; y < h; y++) {
+      final cy = y0 + y + 0.5;
+      for (var x = 0; x < w; x++) {
+        final i = y * w + x;
+        if (silhouette[i] == 0) continue;
+        final cx = x0 + x + 0.5;
+        final sx = (nx + (cx - nx) * k - x0).floor();
+        final sy = (ny + (cy - ny) * k - y0).floor();
+        if (sx >= 0 && sy >= 0 && sx < w && sy < h && silhouette[sy * w + sx] != 0) base[i] = 1;
+      }
+    }
+
+    final largest = labelLargest(base, w, h);
+    if (largest.bestCount < 16) return contour;
+    final labels = largest.labels, best = largest.bestLabel;
+    final boundary = ContourExtractor.traceBoundary(
+      (x, y) => x >= 0 && y >= 0 && x < w && y < h && labels[y * w + x] == best,
+      w,
+      h,
+    );
+    final mm = [
+      for (final p in ContourExtractor.boundaryToMillimeters(boundary, 1)) Point2D(p.x + x0, p.y + y0),
     ];
+    return PolylineSimplifier.simplify(mm, 0.8);
+  }
+
+  /// Even-odd fill of [polygon] on a grid whose pixel (0,0) covers
+  /// [x0, x0+1) x [y0, y0+1); a pixel is inside when its center is.
+  static Uint8List _rasterize(List<Point2D> polygon, int x0, int y0, int w, int h) {
+    final out = Uint8List(w * h);
+    final crossings = <double>[];
+    for (var y = 0; y < h; y++) {
+      final cy = y0 + y + 0.5;
+      crossings.clear();
+      for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        final a = polygon[i], b = polygon[j];
+        if ((a.y > cy) != (b.y > cy)) {
+          crossings.add(a.x + (cy - a.y) * (b.x - a.x) / (b.y - a.y));
+        }
+      }
+      crossings.sort();
+      for (var c = 0; c + 1 < crossings.length; c += 2) {
+        final from = max(0, (crossings[c] - x0 - 0.5).ceil());
+        final to = min(w - 1, (crossings[c + 1] - x0 - 0.5).floor());
+        for (var x = from; x <= to; x++) {
+          out[y * w + x] = 1;
+        }
+      }
+    }
+    return out;
   }
 }

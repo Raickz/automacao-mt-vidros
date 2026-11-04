@@ -32,40 +32,59 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   List<Point2D>? _contour;
   Uint8List? _preview;
   CameraPose? _pose;
+  BoardGeometry? _resultBoard;
+  bool _scaleFromMarkers = false;
 
   final _project = ProjectData();
-  final _boardWidthController = TextEditingController(text: '220');
-  final _boardHeightController = TextEditingController(text: '120');
+  // Optional: left blank, the marker spacing is measured from the QR codes.
+  final _boardWidthController = TextEditingController();
+  final _boardHeightController = TextEditingController();
+  final _printedController = TextEditingController(text: '18,0');
 
   @override
   void dispose() {
     _project.dispose();
     _boardWidthController.dispose();
     _boardHeightController.dispose();
+    _printedController.dispose();
     super.dispose();
   }
 
-  BoardGeometry? get _typedBoard => BoardGeometry.fromMarkerSpans(
-    _boardWidthController.text,
-    _boardHeightController.text,
-  );
+  bool get _manualSpans =>
+      _boardWidthController.text.trim().isNotEmpty || _boardHeightController.text.trim().isNotEmpty;
 
-  double get _boardAspect {
-    final board = _typedBoard;
-    return board == null
-        ? 250 / 150
-        : (board.widthMm / board.heightMm).clamp(0.6, 2.4);
+  BoardGeometry? get _typedBoard =>
+      BoardGeometry.fromMarkerSpans(_boardWidthController.text, _boardHeightController.text);
+
+  double? get _printedMm {
+    final cm = double.tryParse(_printedController.text.trim().replaceAll(',', '.'));
+    return cm == null ? null : cm * 10;
   }
 
-  BoardGeometry? _readBoard() {
+  double get _boardAspect {
+    final board = _resultBoard ?? (_manualSpans ? _typedBoard : null);
+    return board == null ? 250 / 150 : (board.widthMm / board.heightMm).clamp(0.6, 2.4);
+  }
+
+  /// The scale inputs, or null (with the error shown) when they are invalid.
+  /// No typed spacing means "measure it from the QR codes".
+  ({BoardGeometry? board, double printedMm})? _readScale() {
+    void fail(String message) => setState(() {
+          _error = message;
+          _settingsOpen = true;
+        });
+    final printed = _printedMm;
+    if (printed == null || printed < 120 || printed > 240) {
+      fail('Informe o lado do quadrado preto impresso, em cm (impresso a 100% dá 18,0).');
+      return null;
+    }
+    if (!_manualSpans) return (board: null, printedMm: printed);
     final board = _typedBoard;
     if (board == null) {
-      setState(() {
-        _error = BoardGeometry.spanHint;
-        _settingsOpen = true;
-      });
+      fail('${BoardGeometry.spanHint} Ou deixe os dois campos em branco para medir pelos QR.');
+      return null;
     }
-    return board;
+    return (board: board, printedMm: printed);
   }
 
   Future<void> _downloadBoard() async {
@@ -83,8 +102,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   }
 
   Future<void> _pickAndProcess() async {
-    final board = _readBoard();
-    if (board == null) return;
+    final scale = _readScale();
+    if (scale == null) return;
 
     // Resizing in the browser (canvas) bakes in the photo's rotation and
     // spares the pure-Dart decoder from 12-50MP originals.
@@ -106,6 +125,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
       _contour = null;
       _preview = null;
       _pose = null;
+      _resultBoard = null;
     });
     // Let the progress bar paint before the (UI-thread) processing starts.
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -113,7 +133,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     try {
       final result = await MoldScanService().scanContourFromBytes(
         bytes,
-        board: board,
+        board: scale.board,
+        printedMarkerMm: scale.printedMm,
         onStage: (stage) async {
           if (mounted) setState(() => _stage = stage);
         },
@@ -124,6 +145,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _warnings = result.warnings;
         _preview = result.previewPng;
         _pose = result.cameraPose;
+        _resultBoard = result.board;
+        _scaleFromMarkers = result.scaleFromMarkers;
         _processing = false;
       });
     } on MoldScanException catch (e) {
@@ -159,6 +182,18 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _pose,
         _project.thicknessMm,
       );
+
+  String _resultNote(List<Point2D> raw, List<Point2D> shown) {
+    final board = _resultBoard;
+    String cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
+    final scale = board == null
+        ? ''
+        : _scaleFromMarkers
+            ? 'Distância entre os marcadores, medida pelos QR: ${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. '
+            : 'Distância entre os marcadores digitada e conferida pelos QR: '
+                '${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. ';
+    return '$scale${_thicknessNote(raw, shown)}';
+  }
 
   String _thicknessNote(List<Point2D> raw, List<Point2D> shown) {
     final t = _project.thicknessMm;
@@ -421,7 +456,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
               return MeasurementSummary(
                 contour: shown,
                 warnings: _warnings,
-                note: _thicknessNote(contour, shown),
+                note: _resultNote(contour, shown),
               );
             },
           ),
@@ -463,7 +498,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Distância entre os marcadores',
+                          'Escala',
                           style: TextStyle(
                             color: MoldScanColors.textSecondary,
                             fontSize: 14.5,
@@ -476,7 +511,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             _boardHeightController,
                           ]),
                           builder: (context, _) => Text(
-                            '${_boardWidthController.text} × ${_boardHeightController.text} cm',
+                            _manualSpans
+                                ? 'Medida: ${_boardWidthController.text} × ${_boardHeightController.text} cm'
+                                : 'Automática pelos QR',
                             style: MoldScanType.headline(28),
                           ),
                         ),
@@ -507,17 +544,35 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        SizedBox(
+                          width: 240,
+                          child: TextField(
+                            controller: _printedController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: const InputDecoration(labelText: 'Quadrado preto impresso (cm)'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'O app mede a escala pelos próprios QR, que são réguas de tamanho conhecido. Meça '
+                          'um quadrado preto impresso com a régua: impresso a 100% dá 18,0 cm.',
+                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
+                        ),
+                        const SizedBox(height: 18),
+                        const Text(
+                          'Distância entre os marcadores (opcional)',
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                        const SizedBox(height: 10),
                         Row(
                           children: [
                             Expanded(
                               child: TextField(
                                 controller: _boardWidthController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 decoration: const InputDecoration(
                                   labelText: 'Na horizontal (cm)',
+                                  hintText: 'automático',
                                 ),
                                 onChanged: (_) => setState(() {}),
                               ),
@@ -526,29 +581,22 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             Expanded(
                               child: TextField(
                                 controller: _boardHeightController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 decoration: const InputDecoration(
                                   labelText: 'Na vertical (cm)',
+                                  hintText: 'automático',
                                 ),
                                 onChanged: (_) => setState(() {}),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         const Text(
-                          'Depois de colar os 4 marcadores, meça com a trena do canto esquerdo de um '
-                          'quadrado preto até o canto esquerdo do outro: nos dois de cima para a medida '
-                          'horizontal, nos dois da esquerda para a vertical. Essa medida define a escala '
-                          'de tudo, então meça com cuidado. No quadro da loja dá 220 × 120 cm.',
-                          style: TextStyle(
-                            color: MoldScanColors.textSecondary,
-                            fontSize: 14,
-                            height: 1.4,
-                          ),
+                          'Deixe em branco. Se preencher, meça do canto esquerdo de um quadrado preto até o '
+                          'canto esquerdo do outro (os dois de cima para a horizontal, os dois da esquerda '
+                          'para a vertical); o app confere com os QR e avisa se não bater.',
+                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
                         ),
                         const SizedBox(height: 16),
                         OutlinedButton.icon(
@@ -563,7 +611,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                         const SizedBox(height: 8),
                         const Text(
                           '4 folhas A4, uma por marcador. Imprima a 100%, recorte na linha tracejada e cole '
-                          'nos cantos do quadro, com a borda do papel a 50 mm das bordas.',
+                          'um em cada canto do quadro, retos, com a borda do papel a cerca de 5 cm das bordas.',
                           style: TextStyle(
                             color: MoldScanColors.textSecondary,
                             fontSize: 14,

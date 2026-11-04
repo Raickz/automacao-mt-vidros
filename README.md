@@ -13,10 +13,11 @@ Android (câmera ao vivo) continua no repositório, mas não é mais mantido; o 
 1. **Marcadores.** Gere o PDF dos 4 marcadores no app ("Baixar marcadores em PDF"). Imprima em A4, a
    **100%**, recorte na **linha tracejada** e cole um em cada canto do quadro, com a **borda do papel a
    50 mm das bordas** do quadro. Cada folha diz de que canto é.
-2. **Medir os marcadores.** Depois de colar, meça com a trena do canto esquerdo de um quadrado preto até o
-   canto esquerdo do outro: nos dois de cima para a medida horizontal, nos dois da esquerda para a vertical.
-   Digite essas medidas no app. Elas definem a escala de tudo: 1% de erro aqui são 2 cm numa peça de 2 m.
-   No quadro da loja (marcadores a 50 mm das bordas) dá 220 × 120 cm.
+2. **Escala.** O app mede a escala pelos próprios QR (cada quadrado preto é uma régua de 18 cm), então
+   não precisa medir nada com trena. Confira só se a impressão saiu a 100%: meça um quadrado preto com a
+   régua; se não der 18,0 cm, digite o valor medido em "Escala". A distância entre os marcadores é opcional:
+   se for digitada, o app confere com os QR e avisa quando não bate (diferença acima de 2,5%).
+   Se o molde fica em pé apoiado no chão, cole os QR de baixo com o papel encostado no chão.
 3. **Foto.** Molde sobre o quadro, 2 a 3 m de distância, de frente, com os 4 marcadores inteiros na foto.
    Use a foto original da câmera, não a enviada por WhatsApp. O molde deve ficar a pelo menos 5 cm das
    bordas do quadro e fora dos 4 cantos.
@@ -42,6 +43,7 @@ Código em `lib/features/mold_scan/`:
 
 - `services/mold_scan_pipeline.dart` — foto → contorno: acha os 4 marcadores QR, corrige a perspectiva,
   mede o contorno do molde.
+- `services/marker_scale.dart` — mede a escala pelos QR (centros dos padrões e bordas do quadrado preto).
 - `services/camera_pose.dart` — estima onde a câmera estava e desconta a espessura do molde.
 - `services/background_model.dart`, `mask_ops.dart`, `contour_extractor.dart` — cor do fundo, limpeza da
   máscara e traçado do contorno.
