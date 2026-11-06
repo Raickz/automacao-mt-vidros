@@ -24,7 +24,7 @@ class ProjectData {
         'Projeto: ${name.text.trim()}',
         if (material.text.trim().isNotEmpty)
           'Material: ${material.text.trim()}',
-        if (t != null && t > 0) 'Espessura: $t mm',
+        if (t != null && t > 0) 'Espessura do molde: $t mm',
         if (instructions.text.trim().isNotEmpty)
           'Instrucoes de corte: ${instructions.text.trim()}',
       ],
@@ -80,7 +80,10 @@ class ProjectFields extends StatelessWidget {
               child: TextField(
                 controller: data.thickness,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Espessura (mm)'),
+                decoration: const InputDecoration(
+                  labelText: 'Espessura do molde (mm)',
+                  helperText: 'Do molde, não do vidro',
+                ),
               ),
             ),
           ],

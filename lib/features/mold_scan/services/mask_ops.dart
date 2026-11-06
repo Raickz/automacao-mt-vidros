@@ -171,3 +171,41 @@ Uint8List fillEnclosed(Uint8List mask, int w, int h, int maxGap) {
   }
   return out;
 }
+
+/// Marks as foreground every background pixel that the background around
+/// the image cannot reach (4-connected flood fill from the border): the
+/// holes of the shape. Run before [dropSlivers], whose opening would erase
+/// the thin outer edge of a piece (a board's side face, a few mm wide) and
+/// let a dark stain inside it leak out as a bite.
+Uint8List fillHoles(Uint8List mask, int w, int h) {
+  final reached = Uint8List(w * h);
+  final stack = <int>[];
+  void seed(int i) {
+    if (mask[i] == 0 && reached[i] == 0) {
+      reached[i] = 1;
+      stack.add(i);
+    }
+  }
+
+  for (var x = 0; x < w; x++) {
+    seed(x);
+    seed((h - 1) * w + x);
+  }
+  for (var y = 0; y < h; y++) {
+    seed(y * w);
+    seed(y * w + w - 1);
+  }
+  while (stack.isNotEmpty) {
+    final i = stack.removeLast();
+    final x = i % w;
+    if (x > 0) seed(i - 1);
+    if (x < w - 1) seed(i + 1);
+    if (i >= w) seed(i - w);
+    if (i < (h - 1) * w) seed(i + w);
+  }
+  final out = Uint8List(w * h);
+  for (var i = 0; i < out.length; i++) {
+    out[i] = (mask[i] != 0 || reached[i] == 0) ? 1 : 0;
+  }
+  return out;
+}

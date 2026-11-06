@@ -77,26 +77,66 @@ void main() {
     expect(labelLargest(Uint8List(w * h), w, h).bestCount, 0);
   });
 
-  test('fillEnclosed: fecha buraco e mordida cercados, mantém reentrância aberta', () {
-    const W = 60, H = 60;
-    final m = Uint8List(W * H);
-    void rect(int x0, int x1, int y0, int y1, int v) {
-      for (var y = y0; y <= y1; y++) {
-        for (var x = x0; x <= x1; x++) {
-          m[y * W + x] = v;
+  test(
+    'fillEnclosed: fecha buraco e mordida cercados, mantém reentrância aberta',
+    () {
+      const W = 60, H = 60;
+      final m = Uint8List(W * H);
+      void rect(int x0, int x1, int y0, int y1, int v) {
+        for (var y = y0; y <= y1; y++) {
+          for (var x = x0; x <= x1; x++) {
+            m[y * W + x] = v;
+          }
         }
       }
-    }
 
-    rect(5, 54, 5, 54, 1); // peça
-    rect(20, 25, 20, 25, 0); // mancha interna (buraco)
-    rect(5, 30, 40, 42, 0); // mordida vindo da borda esquerda, cercada em cima/baixo/direita só
-    rect(25, 34, 5, 15, 0); // reentrância aberta para cima (como o vão de um coração)
-    final out = fillEnclosed(m, W, H, 20);
-    expect(out[22 * W + 22], 1, reason: 'buraco interno preenchido');
-    expect(out[10 * W + 30], 0, reason: 'reentrância aberta continua aberta');
-    expect(out[41 * W + 6], 0, reason: 'mordida aberta para fora não é inventada');
-    expect(out[41 * W + 20], 0);
-    expect(out[2 * W + 2], 0, reason: 'fora da peça continua fora');
+      rect(5, 54, 5, 54, 1); // peça
+      rect(20, 25, 20, 25, 0); // mancha interna (buraco)
+      rect(
+        5,
+        30,
+        40,
+        42,
+        0,
+      ); // mordida vindo da borda esquerda, cercada em cima/baixo/direita só
+      rect(
+        25,
+        34,
+        5,
+        15,
+        0,
+      ); // reentrância aberta para cima (como o vão de um coração)
+      final out = fillEnclosed(m, W, H, 20);
+      expect(out[22 * W + 22], 1, reason: 'buraco interno preenchido');
+      expect(out[10 * W + 30], 0, reason: 'reentrância aberta continua aberta');
+      expect(
+        out[41 * W + 6],
+        0,
+        reason: 'mordida aberta para fora não é inventada',
+      );
+      expect(out[41 * W + 20], 0);
+      expect(out[2 * W + 2], 0, reason: 'fora da peça continua fora');
+    },
+  );
+
+  test('fillHoles: mancha cercada por borda fina vira peça; reentrância aberta não', () {
+    const W = 40, H = 40;
+    final m = Uint8List(W * H);
+    for (var y = 5; y < 35; y++) {
+      for (var x = 5; x < 35; x++) {
+        final edge = x == 5 || x == 34 || y == 5 || y == 34; // borda de 1 px
+        m[y * W + x] = edge ? 1 : 0;
+      }
+    }
+    for (var y = 0; y < 20; y++) {
+      m[y * W + 20] = 0; // abre a borda de cima num ponto: vira reentrância
+    }
+    m[5 * W + 20] = 0;
+    final closed = fillHoles(m, W, H);
+    expect(closed[20 * W + 20], 0, reason: 'aberta para fora: continua fundo');
+    m[5 * W + 20] = 1;
+    final sealed = fillHoles(m, W, H);
+    expect(sealed[20 * W + 20], 1, reason: 'cercada: vira peça');
+    expect(sealed[2 * W + 2], 0);
   });
 }

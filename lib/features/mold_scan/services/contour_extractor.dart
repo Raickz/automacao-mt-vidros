@@ -13,7 +13,7 @@ export 'contour_types.dart';
 
 class ContourExtractor {
   /// Test hook: receives the cleaned mask right before the outline is traced.
-  static void Function(Uint8List mask, int w, int h)? debugMask;
+  static void Function(String stage, Uint8List mask, int w, int h)? debugMask;
 
   static const _clockwiseOffsets = [
     (1, 0),
@@ -105,6 +105,7 @@ class ContourExtractor {
       );
     }
 
+    debugMask?.call('classify', mask, w, h);
     _placeEdgeByContrast(
       mask,
       dist,
@@ -114,8 +115,10 @@ class ContourExtractor {
       (edgeBandMm * pixelsPerMm).ceil(),
     );
 
+    debugMask?.call('edge', mask, w, h);
     final closeR = (closingRadiusMm * pixelsPerMm).round();
     if (closeR > 0) mask = closeGaps(mask, w, h, closeR);
+    mask = fillHoles(mask, w, h);
     final sliverR = (sliverRadiusMm * pixelsPerMm).round();
     if (sliverR > 0) {
       dropSlivers(
@@ -130,7 +133,7 @@ class ContourExtractor {
     final fillGap = (fillGapMm * pixelsPerMm).round();
     if (fillGap > 0) mask = fillEnclosed(mask, w, h, fillGap);
 
-    debugMask?.call(mask, w, h);
+    debugMask?.call('final', mask, w, h);
     final largest = labelLargest(mask, w, h);
     if (largest.bestCount < minAreaPx) {
       throw const ContourExtractionException(

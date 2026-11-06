@@ -77,7 +77,7 @@ class MoldScanPipeline {
 
   /// Width change between the upper and lower part of the outline above
   /// which a lean is suspected (see [_taperWarning]).
-  static const maxTaper = 0.025;
+  static const maxTaper = 0.02;
   static const previewWidth = 1000;
   static const _cornerOrder = [
     BoardCorner.topLeft,
