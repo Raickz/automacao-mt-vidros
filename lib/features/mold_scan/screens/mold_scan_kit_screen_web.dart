@@ -15,6 +15,8 @@ import '../widgets/mold_ui.dart';
 import '../widgets/project_form.dart';
 import '../services/mold_outline.dart';
 import 'mold_library_page.dart';
+import '../widgets/corner_picker.dart';
+import '../widgets/mold_editor.dart';
 
 class MoldScanKitScreen extends StatefulWidget {
   const MoldScanKitScreen({super.key});
@@ -37,8 +39,12 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   BoardGeometry? _resultBoard;
   bool _scaleFromMarkers = false;
   int _tab = 0; // 0 = digitalizar, 1 = biblioteca
+  bool _editing = false; // scan result open in the editor
+  bool _picking = false; // manual calibration
+  bool _showOriginal = false; // "antes" view of the result
 
   final _project = ProjectData();
+  final _scroll = ScrollController();
   // Optional: left blank, the marker spacing is measured from the QR codes.
   final _boardWidthController = TextEditingController();
   final _boardHeightController = TextEditingController();
@@ -47,6 +53,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   @override
   void dispose() {
     _project.dispose();
+    _scroll.dispose();
     _boardWidthController.dispose();
     _boardHeightController.dispose();
     _printedController.dispose();
@@ -130,8 +137,36 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     if (picked == null) return;
 
     final bytes = await picked.readAsBytes();
+    await _process(bytes, scale);
+  }
+
+  /// Manual calibration: the 4 marker centers placed by hand.
+  Future<void> _processManual(List<Point2D> centers) async {
+    final scale = _readScale();
+    final bytes = _selectedBytes;
+    if (scale == null || bytes == null) return;
+    if (scale.board == null) {
+      setState(() {
+        _error =
+            'Na calibração manual, a escala vem da distância entre os marcadores: meça com a trena e '
+            'digite em "Escala" (horizontal e vertical).';
+        _settingsOpen = true;
+      });
+      return;
+    }
+    setState(() => _picking = false);
+    await _process(bytes, scale, manualCenters: centers);
+  }
+
+  Future<void> _process(
+    Uint8List bytes,
+    ({BoardGeometry? board, double printedMm}) scale, {
+    List<Point2D>? manualCenters,
+  }) async {
     setState(() {
       _selectedBytes = bytes;
+      _showOriginal = false;
+      _editing = false;
       _processing = true;
       _stage = 'Processando...';
       _error = null;
@@ -149,6 +184,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         bytes,
         board: scale.board,
         printedMarkerMm: scale.printedMm,
+        manualCenters: manualCenters,
         onStage: (stage) async {
           if (mounted) setState(() => _stage = stage);
         },
@@ -176,6 +212,14 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _processing = false;
       });
     }
+  }
+
+  /// Switches what the page shows and goes back to its top.
+  void _view(VoidCallback change) {
+    setState(change);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    });
   }
 
   void _downloadDxf() {
@@ -241,6 +285,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                 final wide = c.maxWidth >= 900;
                 final pad = wide ? 32.0 : 18.0;
                 return ListView(
+                  controller: _scroll,
                   padding: EdgeInsets.fromLTRB(pad, 18, pad, 40),
                   children: [
                     const MoldTopBar(),
@@ -268,7 +313,35 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             ? null
                             : MoldOutline(_shown(_contour!)),
                       )
-                    else ...[
+                    else if (_editing && _contour != null)
+                      MoldEditor(
+                        key: ValueKey(_contour),
+                        original: () =>
+                            MoldOutline(_shown(_contour!)).normalized(),
+                        initialName: _project.name.text.trim(),
+                        material: _project.material.text.trim(),
+                        instructions: _project.instructions.text.trim(),
+                        fromScan: true,
+                        backLabel: 'Voltar ao resultado',
+                        onBack: () => _view(() => _editing = false),
+                      )
+                    else if (_picking && _selectedBytes != null) ...[
+                      CornerPicker(
+                        photo: _selectedBytes!,
+                        onDone: _processManual,
+                        onCancel: () => _view(() => _picking = false),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 16),
+                        Notice(
+                          color: MoldScanColors.danger,
+                          icon: Icons.error_outline,
+                          messages: [_error!],
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      _boardSettings(),
+                    ] else ...[
                       _header(wide),
                       const SizedBox(height: 22),
                       StageRail(
@@ -344,7 +417,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             duration: const Duration(milliseconds: 260),
             child: KeyedSubtree(
               key: ValueKey(
-                '${_processing}_${hasPreview}_${_selectedBytes != null}',
+                '${_processing}_${hasPreview}_${_selectedBytes != null}_$_showOriginal',
               ),
               child: _mesaContent(),
             ),
@@ -377,6 +450,22 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             ],
           ),
           const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('Depois')),
+                  ButtonSegment(value: true, label: Text('Antes')),
+                ],
+                selected: {_showOriginal},
+                onSelectionChanged: (v) =>
+                    setState(() => _showOriginal = v.first),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           TextButton.icon(
             onPressed: _processing ? null : _pickAndProcess,
             icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
@@ -398,6 +487,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
 
   Widget _mesaContent() {
     final bytes = _selectedBytes;
+    if (_preview != null && _showOriginal && bytes != null) {
+      return Image.memory(bytes, fit: BoxFit.contain, gaplessPlayback: true);
+    }
     if (_preview != null) {
       return Semantics(
         label:
@@ -485,6 +577,17 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
             icon: Icons.error_outline,
             messages: [_error!],
           ),
+          if (_selectedBytes != null && contour == null && !_processing) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _view(() {
+                _picking = true;
+                _error = null;
+              }),
+              icon: const Icon(Icons.touch_app_outlined, size: 18),
+              label: const Text('Marcar os 4 marcadores à mão'),
+            ),
+          ],
         ],
         if (contour != null) ...[
           const SizedBox(height: 28),
@@ -508,6 +611,15 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
               onPressed: _downloadDxf,
               icon: const Icon(Icons.download, size: 20),
               label: const Text('Baixar DXF'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _view(() => _editing = true),
+              icon: const Icon(Icons.tune, size: 18),
+              label: const Text('Ajustar medida, margem, PDF e orçamento'),
             ),
           ),
         ],

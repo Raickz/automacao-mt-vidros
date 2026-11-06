@@ -34,11 +34,16 @@ class CameraRig {
       return [v[0] / n, v[1] / n, v[2] / n];
     }
 
-    double dot(List<double> a, List<double> b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    double dot(List<double> a, List<double> b) =>
+        a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     _forward = norm([aimX - x, aimY - y, heightMm]);
     const yAxis = [0.0, 1.0, 0.0];
     final d = dot(yAxis, _forward);
-    _down = norm([yAxis[0] - d * _forward[0], yAxis[1] - d * _forward[1], yAxis[2] - d * _forward[2]]);
+    _down = norm([
+      yAxis[0] - d * _forward[0],
+      yAxis[1] - d * _forward[1],
+      yAxis[2] - d * _forward[2],
+    ]);
     // right = down x forward
     _right = [
       _down[1] * _forward[2] - _down[2] * _forward[1],
@@ -51,16 +56,20 @@ class CameraRig {
 
   Point2D project(Point2D boardMm) {
     final v = [boardMm.x - x, boardMm.y - y, heightMm];
-    double dot(List<double> a, List<double> b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    double dot(List<double> a, List<double> b) =>
+        a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     final z = dot(v, _forward);
-    return Point2D(width / 2 + focalPx * dot(v, _right) / z, height / 2 + focalPx * dot(v, _down) / z);
+    return Point2D(
+      width / 2 + focalPx * dot(v, _right) / z,
+      height / 2 + focalPx * dot(v, _down) / z,
+    );
   }
 
   /// Photo pixels of the 4 board corners, in the order the scene expects.
   List<Point2D> boardCorners(BoardGeometry board) => [
-        project(const Point2D(0, 0)),
-        project(Point2D(board.widthMm, 0)),
-        project(Point2D(board.widthMm, board.heightMm)),
-        project(Point2D(0, board.heightMm)),
-      ];
+    project(const Point2D(0, 0)),
+    project(Point2D(board.widthMm, 0)),
+    project(Point2D(board.widthMm, board.heightMm)),
+    project(Point2D(0, board.heightMm)),
+  ];
 }

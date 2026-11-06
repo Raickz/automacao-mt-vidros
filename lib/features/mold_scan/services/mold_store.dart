@@ -20,6 +20,7 @@ class SavedMold {
 class MoldStore {
   static const _key = 'mt_saved_molds_v1';
   static const _favKey = 'mt_fav_molds_v1';
+  static const _priceKey = 'mt_prices_v1';
 
   static List<SavedMold> load() {
     try {
@@ -96,6 +97,27 @@ class MoldStore {
   static void setFavorites(Set<String> codes) {
     try {
       web.window.localStorage.setItem(_favKey, jsonEncode(codes.toList()));
+    } catch (_) {}
+  }
+
+  /// Last typed prices (R$/m² of glass, R$/m of edge), as typed.
+  static (String, String) prices() {
+    try {
+      final raw = web.window.localStorage.getItem(_priceKey);
+      if (raw == null) return ('', '');
+      final m = jsonDecode(raw) as Map;
+      return ((m['m2'] ?? '') as String, (m['m'] ?? '') as String);
+    } catch (_) {
+      return ('', '');
+    }
+  }
+
+  static void setPrices(String perM2, String perMeter) {
+    try {
+      web.window.localStorage.setItem(
+        _priceKey,
+        jsonEncode({'m2': perM2, 'm': perMeter}),
+      );
     } catch (_) {}
   }
 }

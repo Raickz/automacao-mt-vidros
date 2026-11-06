@@ -43,7 +43,9 @@ void main() {
         backgroundG: 90,
         backgroundB: 200,
         pixelsPerMm: 1,
-        excludedRegionsMm: const [MmRect(left: 0, top: 0, right: 30, bottom: 30)],
+        excludedRegionsMm: const [
+          MmRect(left: 0, top: 0, right: 30, bottom: 30),
+        ],
       );
       final xs = withExclusion.map((p) => p.x);
       final ys = withExclusion.map((p) => p.y);
@@ -51,7 +53,6 @@ void main() {
       expect(ys.reduce((a, b) => a < b ? a : b), greaterThanOrEqualTo(49));
     });
   });
-
 
   group('traceBoundary', () {
     bool inSquare(int x, int y) => x >= 3 && x <= 6 && y >= 3 && y <= 6;
@@ -61,7 +62,11 @@ void main() {
 
       expect(boundary, isNotEmpty);
       for (final p in boundary) {
-        expect(inSquare(p.$1, p.$2), isTrue, reason: 'ponto (${p.$1},${p.$2}) fora da forma');
+        expect(
+          inSquare(p.$1, p.$2),
+          isTrue,
+          reason: 'ponto (${p.$1},${p.$2}) fora da forma',
+        );
       }
     });
 
@@ -79,10 +84,16 @@ void main() {
 
       for (final p in boundary) {
         final hasBackgroundNeighbor = [
-          (p.$1 - 1, p.$2), (p.$1 + 1, p.$2),
-          (p.$1, p.$2 - 1), (p.$1, p.$2 + 1),
+          (p.$1 - 1, p.$2),
+          (p.$1 + 1, p.$2),
+          (p.$1, p.$2 - 1),
+          (p.$1, p.$2 + 1),
         ].any((n) => !inSquare(n.$1, n.$2));
-        expect(hasBackgroundNeighbor, isTrue, reason: 'ponto (${p.$1},${p.$2}) não é borda');
+        expect(
+          hasBackgroundNeighbor,
+          isTrue,
+          reason: 'ponto (${p.$1},${p.$2}) não é borda',
+        );
       }
     });
 
@@ -97,7 +108,11 @@ void main() {
       final boundary = ContourExtractor.traceBoundary(inL, 10, 10);
 
       for (final p in boundary) {
-        expect(inL(p.$1, p.$2), isTrue, reason: 'ponto (${p.$1},${p.$2}) fora da forma em L');
+        expect(
+          inL(p.$1, p.$2),
+          isTrue,
+          reason: 'ponto (${p.$1},${p.$2}) fora da forma em L',
+        );
       }
       final asSet = boundary.toSet();
       // Reentrant corner of the L must be traced.

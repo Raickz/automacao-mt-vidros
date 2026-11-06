@@ -51,7 +51,10 @@ void main() {
       const Point2D(210, 290),
     ];
 
-    final h = Homography.fromCorrespondences(markerPixelCorners, markerRealCorners);
+    final h = Homography.fromCorrespondences(
+      markerPixelCorners,
+      markerRealCorners,
+    );
 
     for (var i = 0; i < 4; i++) {
       final recovered = h.apply(markerPixelCorners[i]);

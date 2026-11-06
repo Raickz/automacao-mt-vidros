@@ -17,10 +17,19 @@ void main() {
       expect(BoardGeometry.fromCentimeters('50', '150'), isNull);
     });
 
-    test('recusa quadro grande demais, que estouraria a memória do navegador', () {
-      expect(BoardGeometry.fromCentimeters('400', '200'), isNotNull); // 8 m², o limite
-      expect(BoardGeometry.fromCentimeters('800', '800'), isNull); // 64 m²
-      expect(BoardGeometry.fromCentimeters('2500', '1500'), isNull); // mm digitado como cm
-    });
+    test(
+      'recusa quadro grande demais, que estouraria a memória do navegador',
+      () {
+        expect(
+          BoardGeometry.fromCentimeters('400', '200'),
+          isNotNull,
+        ); // 8 m², o limite
+        expect(BoardGeometry.fromCentimeters('800', '800'), isNull); // 64 m²
+        expect(
+          BoardGeometry.fromCentimeters('2500', '1500'),
+          isNull,
+        ); // mm digitado como cm
+      },
+    );
   });
 }

@@ -117,7 +117,8 @@ class SyntheticScene {
     var inside = false;
     for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
       final a = poly[i], b = poly[j];
-      if ((a.y > y) != (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) {
+      if ((a.y > y) != (b.y > y) &&
+          x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) {
         inside = !inside;
       }
     }
@@ -141,11 +142,19 @@ class SyntheticScene {
     final qrs = <BoardCorner, QrImage>{};
     for (final c in BoardCorner.values) {
       final payload = cfg.payloadOverride[c] ?? c.payload;
-      qrs[c] = QrImage(QrCode.fromData(data: payload, errorCorrectLevel: QrErrorCorrectLevel.H));
+      qrs[c] = QrImage(
+        QrCode.fromData(
+          data: payload,
+          errorCorrectLevel: QrErrorCorrectLevel.H,
+        ),
+      );
     }
 
     final poly = cfg.moldPolygonMm;
-    var minX = double.infinity, minY = double.infinity, maxX = -double.infinity, maxY = -double.infinity;
+    var minX = double.infinity,
+        minY = double.infinity,
+        maxX = -double.infinity,
+        maxY = -double.infinity;
     for (final p in poly) {
       minX = min(minX, p.x);
       minY = min(minY, p.y);
@@ -159,14 +168,20 @@ class SyntheticScene {
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++, i++) {
         final mx = mmX[i], my = mmY[i];
-        var r = cfg.wallColor.$1.toDouble(), g = cfg.wallColor.$2.toDouble(), b = cfg.wallColor.$3.toDouble();
+        var r = cfg.wallColor.$1.toDouble(),
+            g = cfg.wallColor.$2.toDouble(),
+            b = cfg.wallColor.$3.toDouble();
 
         if (mx >= 0 && mx <= boardW && my >= 0 && my <= boardH) {
           r = cfg.boardColor.$1.toDouble();
           g = cfg.boardColor.$2.toDouble();
           b = cfg.boardColor.$3.toDouble();
 
-          if (cfg.shadow && mx >= minX && mx <= maxX + 30 && my >= minY && my <= maxY + 30) {
+          if (cfg.shadow &&
+              mx >= minX &&
+              mx <= maxX + 30 &&
+              my >= minY &&
+              my <= maxY + 30) {
             if (_inPolygon(mx, my, shadowPoly)) {
               r *= 0.55;
               g *= 0.55;
@@ -181,9 +196,14 @@ class SyntheticScene {
 
             bool inPaper;
             if (cfg.paper == MarkerPaper.cutWithQuietZone) {
-              inPaper = lx >= -quiet && lx <= size + quiet && ly >= -quiet && ly <= size + quiet;
+              inPaper =
+                  lx >= -quiet &&
+                  lx <= size + quiet &&
+                  ly >= -quiet &&
+                  ly <= size + quiet;
             } else {
-              inPaper = lx >= -10 && lx <= size + 20 && ly >= -57 && ly <= size + 50;
+              inPaper =
+                  lx >= -10 && lx <= size + 20 && ly >= -57 && ly <= size + 50;
             }
             if (!inPaper) continue;
 
@@ -207,11 +227,19 @@ class SyntheticScene {
             qx = nadir.x + (mx - nadir.x) * k;
             qy = nadir.y + (my - nadir.y) * k;
           }
-          if (qx >= minX && qx <= maxX && qy >= minY && qy <= maxY && _inPolygon(qx, qy, poly)) {
+          if (qx >= minX &&
+              qx <= maxX &&
+              qy >= minY &&
+              qy <= maxY &&
+              _inPolygon(qx, qy, poly)) {
             r = cfg.moldColor.$1.toDouble();
             g = cfg.moldColor.$2.toDouble();
             b = cfg.moldColor.$3.toDouble();
-          } else if (cfg.thicknessMm > 0 && mx >= minX && mx <= maxX && my >= minY && my <= maxY &&
+          } else if (cfg.thicknessMm > 0 &&
+              mx >= minX &&
+              mx <= maxX &&
+              my >= minY &&
+              my <= maxY &&
               _inPolygon(mx, my, poly)) {
             // Base outline not covered by the top face: a visible side face,
             // darker (it faces sideways, away from the light).
@@ -221,7 +249,8 @@ class SyntheticScene {
           }
 
           for (final gr in cfg.grooves) {
-            if (_distToSegment(mx, my, gr.$1, gr.$2) <= gr.$3 / 2 && _inPolygon(mx, my, poly)) {
+            if (_distToSegment(mx, my, gr.$1, gr.$2) <= gr.$3 / 2 &&
+                _inPolygon(mx, my, poly)) {
               r = cfg.grooveColor.$1.toDouble();
               g = cfg.grooveColor.$2.toDouble();
               b = cfg.grooveColor.$3.toDouble();
@@ -247,7 +276,13 @@ class SyntheticScene {
         g *= light;
         b *= light;
 
-        out.setPixelRgb(x, y, r.clamp(0, 255).round(), g.clamp(0, 255).round(), b.clamp(0, 255).round());
+        out.setPixelRgb(
+          x,
+          y,
+          r.clamp(0, 255).round(),
+          g.clamp(0, 255).round(),
+          b.clamp(0, 255).round(),
+        );
       }
     }
 
@@ -260,7 +295,10 @@ class SyntheticScene {
       for (var y = 0; y < result.height; y++) {
         for (var x = 0; x < result.width; x++) {
           final p = result.getPixel(x, y);
-          double n() => (rng.nextDouble() + rng.nextDouble() + rng.nextDouble() - 1.5) * 2 * cfg.noiseSigma;
+          double n() =>
+              (rng.nextDouble() + rng.nextDouble() + rng.nextDouble() - 1.5) *
+              2 *
+              cfg.noiseSigma;
           result.setPixelRgb(
             x,
             y,
@@ -275,7 +313,9 @@ class SyntheticScene {
   }
 }
 
-({double width, double height, double minX, double minY}) boundingBox(List<Point2D> pts) {
+({double width, double height, double minX, double minY}) boundingBox(
+  List<Point2D> pts,
+) {
   final xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   final minX = xs.reduce(min), maxX = xs.reduce(max);
   final minY = ys.reduce(min), maxY = ys.reduce(max);

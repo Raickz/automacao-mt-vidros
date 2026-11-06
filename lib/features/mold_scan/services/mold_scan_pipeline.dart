@@ -81,14 +81,26 @@ class MoldScanPipeline {
   /// [board] is the marker spacing typed by the user, or null to measure it
   /// from the QR codes. [printedMarkerMm] is the side of the black square as
   /// printed (180 when the PDF was printed at 100%).
+  ///
+  /// [manualCenters] skips the QR detection: the 4 marker centers marked by
+  /// hand on the photo, in the order top-left, top-right, bottom-right,
+  /// bottom-left, as fractions (0..1) of the photo's width and height, so
+  /// they survive any resizing. The scale then comes only from [board],
+  /// which becomes required.
   static Future<MoldScanResult> run(
     Uint8List bytes, {
     BoardGeometry? board,
     double printedMarkerMm = MoldBoardSpec.markerSizeMm,
+    List<Point2D>? manualCenters,
     Future<void> Function(String stage)? onStage,
   }) async {
     if (board != null && !board.isUsable) {
       throw const MoldScanException(BoardGeometry.spanHint);
+    }
+    if (manualCenters != null && (manualCenters.length != 4 || board == null)) {
+      throw const MoldScanException(
+        'Na calibração manual, informe a distância entre os marcadores (horizontal e vertical) em "Escala".',
+      );
     }
     if (printedMarkerMm < 120 || printedMarkerMm > 240) {
       throw const MoldScanException(
@@ -126,54 +138,69 @@ class MoldScanPipeline {
       );
     }
 
-    await stage('Procurando os 4 marcadores do quadro...');
-    final markers = BoardMarkerDetector().detectFromImage(photo);
-    final missing = _cornerOrder.where((c) => !markers.containsKey(c)).toList();
-    if (missing.isNotEmpty) {
-      throw MoldScanException(
-        'Encontrei só ${markers.length} dos 4 marcadores do quadro. Confira se os 4 estão '
-        'inteiros e nítidos na foto, sem reflexo, e se a foto não foi comprimida '
-        '(use o arquivo original, não o enviado por WhatsApp).',
-      );
-    }
-    final srcPixels = [for (final c in _cornerOrder) markers[c]!.center];
-    _checkOrder(srcPixels);
-
-    await stage('Medindo a escala pelos marcadores...');
+    final List<Point2D> srcPixels;
     var geometry = board ?? BoardGeometry.standard;
-    final measured = _measureSpacing(
-      photo,
-      markers,
-      srcPixels,
-      geometry,
-      printedMarkerMm,
-    );
     var scaleFromMarkers = false;
-    if (measured == null) {
-      if (board == null) {
-        throw const MoldScanException(
-          'Não consegui medir a escala pelos marcadores. Confira se os 4 estão nítidos, retos e da mesma '
-          'impressão, ou informe a distância entre eles na configuração da escala.',
+    if (manualCenters != null) {
+      srcPixels = [
+        for (final c in manualCenters)
+          Point2D(c.x * photo.width, c.y * photo.height),
+      ];
+      _checkOrder(srcPixels);
+      warnings.add(
+        'Calibração manual: a precisão depende de onde os 4 pontos foram colocados e da distância digitada '
+        'entre os marcadores. Confira com a trena.',
+      );
+    } else {
+      await stage('Procurando os 4 marcadores do quadro...');
+      final markers = BoardMarkerDetector().detectFromImage(photo);
+      final missing = _cornerOrder
+          .where((c) => !markers.containsKey(c))
+          .toList();
+      if (missing.isNotEmpty) {
+        throw MoldScanException(
+          'Encontrei só ${markers.length} dos 4 marcadores do quadro. Confira se os 4 estão '
+          'inteiros e nítidos na foto, sem reflexo, e se a foto não foi comprimida '
+          '(use o arquivo original, não o enviado por WhatsApp).',
         );
       }
-      warnings.add(
-        'Não consegui conferir a escala pelos QR; usei a distância digitada.',
+      srcPixels = [for (final c in _cornerOrder) markers[c]!.center];
+      _checkOrder(srcPixels);
+
+      await stage('Medindo a escala pelos marcadores...');
+      final measured = _measureSpacing(
+        photo,
+        markers,
+        srcPixels,
+        geometry,
+        printedMarkerMm,
       );
-    } else if (board == null) {
-      geometry = measured;
-      scaleFromMarkers = true;
-    } else {
-      final dx = board.spanXMm / measured.spanXMm - 1,
-          dy = board.spanYMm / measured.spanYMm - 1;
-      if (dx.abs() > maxManualDisagreement ||
-          dy.abs() > maxManualDisagreement) {
+      if (measured == null) {
+        if (board == null) {
+          throw const MoldScanException(
+            'Não consegui medir a escala pelos marcadores. Confira se os 4 estão nítidos, retos e da mesma '
+            'impressão, ou informe a distância entre eles na configuração da escala.',
+          );
+        }
         warnings.add(
-          'A distância digitada entre os marcadores (${_cm(board.spanXMm)} × ${_cm(board.spanYMm)} cm) não '
-          'bate com o tamanho dos QR na foto, que indica ${_cm(measured.spanXMm)} × ${_cm(measured.spanYMm)} cm. '
-          'Usei a medida dos QR. Confira a trena e se a impressão saiu a 100% (quadrado preto de 18,0 cm).',
+          'Não consegui conferir a escala pelos QR; usei a distância digitada.',
         );
+      } else if (board == null) {
         geometry = measured;
         scaleFromMarkers = true;
+      } else {
+        final dx = board.spanXMm / measured.spanXMm - 1,
+            dy = board.spanYMm / measured.spanYMm - 1;
+        if (dx.abs() > maxManualDisagreement ||
+            dy.abs() > maxManualDisagreement) {
+          warnings.add(
+            'A distância digitada entre os marcadores (${_cm(board.spanXMm)} × ${_cm(board.spanYMm)} cm) não '
+            'bate com o tamanho dos QR na foto, que indica ${_cm(measured.spanXMm)} × ${_cm(measured.spanYMm)} cm. '
+            'Usei a medida dos QR. Confira a trena e se a impressão saiu a 100% (quadrado preto de 18,0 cm).',
+          );
+          geometry = measured;
+          scaleFromMarkers = true;
+        }
       }
     }
     final pixelToMm = _homography(srcPixels, geometry);

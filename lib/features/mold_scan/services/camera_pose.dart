@@ -133,8 +133,9 @@ class CameraPoseEstimator {
             sy >= 0 &&
             sx < w &&
             sy < h &&
-            silhouette[sy * w + sx] != 0)
+            silhouette[sy * w + sx] != 0) {
           base[i] = 1;
+        }
       }
     }
 

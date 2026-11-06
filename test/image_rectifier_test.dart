@@ -16,7 +16,10 @@ void main() {
       const Point2D(19, 19),
       const Point2D(0, 19),
     ];
-    final identity = Homography.fromCorrespondences(identityCorners, identityCorners);
+    final identity = Homography.fromCorrespondences(
+      identityCorners,
+      identityCorners,
+    );
 
     final result = ImageRectifier.rectify(
       source: source,
@@ -103,10 +106,17 @@ void main() {
     );
 
     for (final xy in [
-      (0, 0), (result.width - 1, 0), (0, result.height - 1), (result.width - 1, result.height - 1),
+      (0, 0),
+      (result.width - 1, 0),
+      (0, result.height - 1),
+      (result.width - 1, result.height - 1),
     ]) {
       final pixel = result.getPixel(xy.$1, xy.$2);
-      expect(pixel.r, background, reason: 'canto (${xy.$1},${xy.$2}) não deveria estar preto');
+      expect(
+        pixel.r,
+        background,
+        reason: 'canto (${xy.$1},${xy.$2}) não deveria estar preto',
+      );
     }
   });
 }

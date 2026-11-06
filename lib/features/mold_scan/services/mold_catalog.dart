@@ -71,9 +71,15 @@ class MoldCatalog {
     return pts;
   }
 
-  /// Flat bottom, semicircular top (door / window arch).
-  static List<Point2D> _arch() {
-    final pts = <Point2D>[const Point2D(1, 1), const Point2D(-1, 1)];
+  /// Flat bottom, semicircular top (door / window arch) for a piece
+  /// [ratio] times taller than wide: at that size the top is a true
+  /// half circle (with a locked proportion it stays one).
+  static List<Point2D> _arch(double ratio) {
+    final rect = max(
+      0.0,
+      2 * ratio - 1,
+    ); // straight part below the arc (width = 2)
+    final pts = <Point2D>[Point2D(1, rect), Point2D(-1, rect)];
     for (var i = 0; i <= 60; i++) {
       final t = pi + pi * i / 60;
       pts.add(Point2D(cos(t), sin(t)));
@@ -268,9 +274,9 @@ class MoldCatalog {
     add('Pílula em pé', 400, 1000, () => _roundRect(0.4, 1, 0.5), round: true);
     add('Super-elipse', 800, 600, () => _superellipse(3.2), round: true);
     add('Super-elipse larga', 1200, 600, () => _superellipse(3.6), round: true);
-    add('Arco de porta', 800, 2100, _arch);
-    add('Arco de janela', 700, 1100, _arch);
-    add('Arco largo', 1400, 900, _arch);
+    add('Arco de porta', 800, 2100, () => _arch(2100 / 800));
+    add('Arco de janela', 700, 1100, () => _arch(1100 / 700));
+    add('Arco largo', 1400, 900, () => _arch(900 / 1400));
     add('Meia-lua', 1000, 500, _semicircle, round: true);
     add('Quarto de círculo', 700, 700, _quarter, round: true);
     add('Trapézio', 1000, 600, _trapezoid);

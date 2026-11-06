@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/dxf_writer.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/mold_catalog.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/svg_writer.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/cut_report_pdf_builder.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/quote.dart';
 
 void main() {
   test('every catalog shape is a valid closed outline at its default size', () {
@@ -32,7 +34,10 @@ void main() {
     expect(r.height, closeTo(400, 1e-9));
     expect(o.flippedHorizontally().width, closeTo(400, 1e-9));
     expect(o.flippedVertically().height, closeTo(900, 1e-9));
-    expect(o.rotated90().rotated90().rotated90().rotated90().width, closeTo(400, 1e-9));
+    expect(
+      o.rotated90().rotated90().rotated90().rotated90().width,
+      closeTo(400, 1e-9),
+    );
   });
 
   test('offset grows a circle by the margin on each side', () {
@@ -43,7 +48,9 @@ void main() {
   });
 
   test('spline keeps the size within a millimeter and adds points', () {
-    final o = MoldCatalog.all.firstWhere((m) => m.name.startsWith('Orgânico')).outline();
+    final o = MoldCatalog.all
+        .firstWhere((m) => m.name.startsWith('Orgânico'))
+        .outline();
     final s = o.splined();
     expect(s.points.length, greaterThanOrEqualTo(o.points.length));
     expect(s.width, closeTo(o.width, 1.0));
@@ -58,5 +65,32 @@ void main() {
     expect(svg, contains('width="1000.00mm"'));
     expect(svg, contains('height="500.00mm"'));
     expect(svg, isNot(contains('a<b')));
+  });
+
+  test('quote charges the sheet rectangle and the edge length', () {
+    final o = MoldCatalog.all[0].outline().resized(1000, 500); // ellipse
+    const q = Quote(pricePerM2: 200, pricePerMeter: 10, quantity: 2);
+    expect(q.glass(o), closeTo(0.5 * 200 * 2, 1e-9));
+    expect(q.edge(o), closeTo(o.perimeterMm / 1000 * 10 * 2, 1e-9));
+    expect(Quote.brl(1234.5), 'R\$ 1.234,50');
+    expect(Quote.brl(0.07), 'R\$ 0,07');
+    expect(Quote.brl(1000000), 'R\$ 1.000.000,00');
+  });
+
+  test('cut report and label are valid PDFs, accents included', () async {
+    final o = MoldCatalog.all[22].outline();
+    final job = CutJob(
+      name: 'Coração espelho',
+      material: 'Espelho prata',
+      glassThicknessMm: 4,
+      instructions: 'Lapidação reta, furo ø 10',
+      marginMm: 2,
+      quote: const Quote(pricePerM2: 250, pricePerMeter: 12),
+    );
+    final report = await CutReportPdfBuilder.report(o, job);
+    final label = await CutReportPdfBuilder.label(o, job);
+    expect(String.fromCharCodes(report.take(5)), '%PDF-');
+    expect(String.fromCharCodes(label.take(5)), '%PDF-');
+    expect(report.length, greaterThan(2000));
   });
 }

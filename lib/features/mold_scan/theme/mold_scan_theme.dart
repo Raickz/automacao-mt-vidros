@@ -47,6 +47,34 @@ class MoldScanTheme {
         surface: MoldScanColors.surface,
         onSurface: MoldScanColors.textPrimary,
         error: MoldScanColors.danger,
+        // Selected segments and chips: teal from the logo, not M3's default lilac.
+        secondaryContainer: const Color(0xFF0E6E73),
+        onSecondaryContainer: MoldScanColors.textPrimary,
+        outline: MoldScanColors.border,
+        outlineVariant: MoldScanColors.border,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: MoldScanColors.surface,
+        selectedColor: const Color(0xFF0E6E73),
+        checkmarkColor: MoldScanColors.textPrimary,
+        side: const BorderSide(color: MoldScanColors.border),
+        labelStyle: const TextStyle(
+          color: MoldScanColors.textPrimary,
+          fontWeight: FontWeight.w500,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? MoldScanColors.background
+              : MoldScanColors.textSecondary,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? MoldScanColors.accent
+              : MoldScanColors.surfaceLight,
+        ),
       ),
       textTheme: base.textTheme.apply(
         fontFamily: MoldScanType.text,

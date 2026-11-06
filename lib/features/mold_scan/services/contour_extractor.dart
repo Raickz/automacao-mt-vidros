@@ -105,7 +105,7 @@ class ContourExtractor {
     final closeR = (closingRadiusMm * pixelsPerMm).round();
     if (closeR > 0) mask = closeGaps(mask, w, h, closeR);
     final sliverR = (sliverRadiusMm * pixelsPerMm).round();
-    if (sliverR > 0)
+    if (sliverR > 0) {
       dropSlivers(
         mask,
         w,
@@ -113,6 +113,7 @@ class ContourExtractor {
         sliverR,
         edgeZone: band > 0 ? band + sliverR + 2 : 0,
       );
+    }
 
     final largest = labelLargest(mask, w, h);
     if (largest.bestCount < minAreaPx) {
@@ -344,8 +345,9 @@ class ContourExtractor {
 
   static int _offsetIndex(int dx, int dy) {
     for (var i = 0; i < _clockwiseOffsets.length; i++) {
-      if (_clockwiseOffsets[i].$1 == dx && _clockwiseOffsets[i].$2 == dy)
+      if (_clockwiseOffsets[i].$1 == dx && _clockwiseOffsets[i].$2 == dy) {
         return i;
+      }
     }
     throw StateError('Offset inválido: ($dx, $dy)');
   }
