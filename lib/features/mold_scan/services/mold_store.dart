@@ -21,7 +21,8 @@ class MoldStore {
   static const _key = 'mt_saved_molds_v1';
   static const _favKey = 'mt_fav_molds_v1';
   static const _priceKey = 'mt_prices_v1';
-  static const _spanKey = 'mt_marker_spans_v1';
+  // v2: distances measured from the outer edges of the black squares.
+  static const _spanKey = 'mt_marker_spans_v2';
 
   static List<SavedMold> load() {
     try {

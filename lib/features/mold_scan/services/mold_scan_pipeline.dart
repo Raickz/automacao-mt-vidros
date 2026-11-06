@@ -67,13 +67,17 @@ class MoldScanPipeline {
   // With the bottom papers flush with the floor, a mold standing on the floor
   // ends there too and is measured whole, with no strip of floor attached.
   static const ignoreBorderMm = 50.0;
-  // Above this disagreement, a typed marker spacing is overruled by the one
-  // measured from the QR codes.
-  /// A spacing measured with a tape over ~2 m is more precise than one
-  /// extrapolated from 18 cm QR squares (which varies ~2% between photos,
-  /// with paper curl and blur), so a typed spacing wins unless it is off by
-  /// more than this, which means it was measured wrong.
-  static const maxManualDisagreement = 0.05;
+
+  /// A spacing measured with a tape over ~2 m is far more precise than one
+  /// extrapolated from 18 cm QR squares: a sheet that curls off the wall
+  /// looks narrower, and in a real test the QR were 3.7% off on one axis
+  /// and right on the other. So a typed spacing always wins, unless it is
+  /// off by more than this, which means it was measured some other way
+  /// (paper edges, centers) and the QR are the lesser evil.
+  static const maxManualDisagreement = 0.08;
+
+  /// Above this, a typed spacing is used but the user is asked to check it.
+  static const checkManualDisagreement = 0.03;
 
   /// Width change between the upper and lower part of the outline above
   /// which a lean is suspected (see [_taperWarning]).
@@ -202,16 +206,18 @@ class MoldScanPipeline {
         if (dx.abs() > maxManualDisagreement ||
             dy.abs() > maxManualDisagreement) {
           warnings.add(
-            'A distância digitada entre os marcadores (${_cm(board.spanXMm)} × ${_cm(board.spanYMm)} cm) não '
-            'bate com o tamanho dos QR na foto, que indica ${_cm(measured.spanXMm)} × ${_cm(measured.spanYMm)} cm. '
-            'Usei a medida dos QR. Confira a trena e se a impressão saiu a 100% (quadrado preto de 18,0 cm).',
+            'A distância digitada não bate com o tamanho dos QR na foto (diferença acima de 8%), então usei a '
+            'dos QR. Meça com a trena de fora a fora dos quadrados pretos — da borda de fora de um quadrado preto '
+            'até a borda de fora do outro, não da folha — e confira se a impressão saiu a 100% (quadrado de 18,0 cm).',
           );
           geometry = measured;
           scaleFromMarkers = true;
-        } else if (dx.abs() > 0.008 || dy.abs() > 0.008) {
+        } else if (dx.abs() > checkManualDisagreement ||
+            dy.abs() > checkManualDisagreement) {
           warnings.add(
-            'Usei a distância digitada (${_cm(board.spanXMm)} × ${_cm(board.spanYMm)} cm). Pelos QR daria '
-            '${_cm(measured.spanXMm)} × ${_cm(measured.spanYMm)} cm; a trena é mais precisa.',
+            'Usei a distância digitada. Pelos QR ela daria ${_pct(dx)} na horizontal e ${_pct(dy)} na vertical '
+            'de diferença. Folha ondulada ou descolada engana os QR; se a trena foi medida de fora a fora dos '
+            'quadrados pretos, a medida está certa.',
           );
         }
       }
@@ -366,8 +372,8 @@ class MoldScanPipeline {
     return g;
   }
 
-  static String _cm(double mm) =>
-      (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
+  static String _pct(double d) =>
+      '${(d.abs() * 100).toStringAsFixed(1).replaceAll('.', ',')}%';
 
   static Homography _homography(List<Point2D> srcPixels, BoardGeometry board) =>
       Homography.fromCorrespondences(srcPixels, [

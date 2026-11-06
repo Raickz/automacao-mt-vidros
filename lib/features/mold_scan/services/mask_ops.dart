@@ -209,3 +209,18 @@ Uint8List fillHoles(Uint8List mask, int w, int h) {
   }
   return out;
 }
+
+/// Clears, in place, the 8-connected foreground pieces smaller than
+/// [minArea] px: specks of dirt on the board that a closing would otherwise
+/// glue onto a piece's edge as lumps.
+void removeSmallComponents(Uint8List mask, int w, int h, int minArea) {
+  final labels = labelLargest(mask, w, h).labels;
+  final counts = <int, int>{};
+  for (final l in labels) {
+    if (l != 0) counts[l] = (counts[l] ?? 0) + 1;
+  }
+  for (var i = 0; i < mask.length; i++) {
+    final l = labels[i];
+    if (l != 0 && counts[l]! < minArea) mask[i] = 0;
+  }
+}

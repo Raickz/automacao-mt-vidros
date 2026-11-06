@@ -59,17 +59,29 @@ class BoardGeometry {
   /// without having to find the center). Measuring this directly, instead of
   /// trusting that the papers were glued exactly where the PDF says, removes
   /// the biggest source of scale error: 1% off here is 2cm on a 2.2m board.
-  static BoardGeometry? fromMarkerSpans(String horizontal, String vertical) {
+  /// From distances typed in cm. With [outerEdgesSquareMm] (the printed
+  /// black square side), they were measured the natural way, from the outer
+  /// edge of one black square to the outer edge of the other, which is the
+  /// spacing between centers plus one square.
+  static BoardGeometry? fromMarkerSpans(
+    String horizontal,
+    String vertical, {
+    double outerEdgesSquareMm = 0,
+  }) {
     double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
     final w = parse(horizontal), h = parse(vertical);
     if (w == null || h == null) return null;
-    final board = BoardGeometry.fromSpansMm(w * 10, h * 10);
+    final board = BoardGeometry.fromSpansMm(
+      w * 10 - outerEdgesSquareMm,
+      h * 10 - outerEdgesSquareMm,
+    );
     return board.isUsable ? board : null;
   }
 
   static const spanHint =
-      'Informe a distância entre os marcadores, em cm, medida do canto esquerdo de um quadrado preto até o '
-      'canto esquerdo do outro. Cada medida precisa ter 30 cm ou mais, e o quadro todo no máximo 8 m².';
+      'Informe as duas distâncias entre os marcadores, em cm, medidas com a trena de fora a fora dos '
+      'quadrados pretos: da borda de fora de um quadrado preto até a borda de fora do outro (não da folha). '
+      'Cada uma com 50 cm ou mais, e o quadro todo no máximo 8 m².';
 
   static const sizeHint =
       'Informe a largura e a altura reais do quadro, em cm: cada lado a partir de 60 cm '

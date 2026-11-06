@@ -71,13 +71,15 @@ class ContourExtractor {
     double closingRadiusMm = 8,
     double edgeBandMm = 4,
     double fillGapMm = 150,
+    double protrusionRadiusMm = 15,
+    double speckAreaMm2 = 150,
     double sliverRadiusMm = 6,
     List<MmRect> excludedRegionsMm = const [],
     double ignoreBorderMm = 0,
     int minAreaPx = 16,
   }) {
     final w = image.width, h = image.height;
-    final (mask0, dist) = _classify(
+    final (mask0, dist, darkOnly) = _classify(
       image,
       background,
       chromaThresholdRatio: chromaThresholdRatio,
@@ -106,6 +108,7 @@ class ContourExtractor {
     }
 
     debugMask?.call('classify', mask, w, h);
+    debugMask?.call('dark', darkOnly, w, h);
     _placeEdgeByContrast(
       mask,
       dist,
@@ -116,6 +119,8 @@ class ContourExtractor {
     );
 
     debugMask?.call('edge', mask, w, h);
+    final speck = (speckAreaMm2 * pixelsPerMm * pixelsPerMm).round();
+    if (speck > 0) removeSmallComponents(mask, w, h, speck);
     final closeR = (closingRadiusMm * pixelsPerMm).round();
     if (closeR > 0) mask = closeGaps(mask, w, h, closeR);
     mask = fillHoles(mask, w, h);
@@ -132,6 +137,9 @@ class ContourExtractor {
 
     final fillGap = (fillGapMm * pixelsPerMm).round();
     if (fillGap > 0) mask = fillEnclosed(mask, w, h, fillGap);
+
+    final pruneR = (protrusionRadiusMm * pixelsPerMm).round();
+    if (pruneR > 0) _pruneDarkProtrusions(mask, darkOnly, mask0, w, h, pruneR);
 
     debugMask?.call('final', mask, w, h);
     final largest = labelLargest(mask, w, h);
@@ -175,7 +183,7 @@ class ContourExtractor {
   ///
   /// Returns the 0/1 mask and, per pixel, the Euclidean distance from the
   /// expected background color (used to place the edge).
-  static (Uint8List, Uint16List) _classify(
+  static (Uint8List, Uint16List, Uint8List) _classify(
     img.Image image,
     BackgroundModel background, {
     required double chromaThresholdRatio,
@@ -186,6 +194,8 @@ class ContourExtractor {
     final bytes = image.getBytes(order: img.ChannelOrder.rgb);
     final mask = Uint8List(w * h);
     final dist = Uint16List(w * h);
+    // 1 where the pixel is "piece" only for being darker, with the board's own hue.
+    final darkOnly = Uint8List(w * h);
 
     const minChroma2 = 22.0 * 22.0;
     var o = 0;
@@ -203,10 +213,6 @@ class ContourExtractor {
           continue;
         }
         final k = (r * bgR + g * bgG + b * bgB) / bb;
-        if (k < minBrightnessRatio || k > maxBrightnessRatio) {
-          mask[i] = 1;
-          continue;
-        }
         final cr = r - k * bgR;
         final cg = g - k * bgG;
         final cb = b - k * bgB;
@@ -214,10 +220,74 @@ class ContourExtractor {
           chromaThresholdRatio * chromaThresholdRatio * bb,
           minChroma2,
         );
-        if (cr * cr + cg * cg + cb * cb > t2) mask[i] = 1;
+        final colored = cr * cr + cg * cg + cb * cb > t2;
+        if (colored || k > maxBrightnessRatio) {
+          mask[i] = 1;
+        } else if (k < minBrightnessRatio) {
+          mask[i] = 1;
+          darkOnly[i] = 1;
+        }
       }
     }
-    return (mask, dist);
+    return (mask, dist, darkOnly);
+  }
+
+  /// Wall stains, a cast shadow or the dark gap behind a piece often touch
+  /// its edge and get glued to it as lumps. They are "piece" only for being
+  /// darker than the board, while a colored piece (cardboard, wood, MDF) is
+  /// mostly told apart by its color. So, on a mostly colored piece, the
+  /// parts that stick out of its core (what an opening of radius [r]
+  /// removes) and are mostly dark-only are cut off. A dark piece (black
+  /// rubber, dark paint) is mostly dark-only itself and is left untouched.
+  static void _pruneDarkProtrusions(
+    Uint8List mask,
+    Uint8List darkOnly,
+    Uint8List classified,
+    int w,
+    int h,
+    int r,
+  ) {
+    final core = boxMorph(
+      boxMorph(mask, w, h, r, erode: true),
+      w,
+      h,
+      r,
+      erode: false,
+    );
+    var coreColored = 0, coreDark = 0;
+    for (var i = 0; i < mask.length; i++) {
+      if (core[i] == 0 || classified[i] == 0) continue;
+      if (darkOnly[i] != 0) {
+        coreDark++;
+      } else {
+        coreColored++;
+      }
+    }
+    if (coreColored < 3 * coreDark) return;
+
+    final rest = Uint8List(mask.length);
+    for (var i = 0; i < mask.length; i++) {
+      if (mask[i] != 0 && core[i] == 0) rest[i] = 1;
+    }
+    final comps = labelLargest(rest, w, h).labels;
+    final dark = <int, int>{}, colored = <int, int>{};
+    for (var i = 0; i < mask.length; i++) {
+      final l = comps[i];
+      if (l == 0 || classified[i] == 0) continue;
+      if (darkOnly[i] != 0) {
+        dark[l] = (dark[l] ?? 0) + 1;
+      } else {
+        colored[l] = (colored[l] ?? 0) + 1;
+      }
+    }
+    final drop = <int>{
+      for (final l in dark.keys)
+        if (dark[l]! > 1.5 * (colored[l] ?? 0)) l,
+    };
+    if (drop.isEmpty) return;
+    for (var i = 0; i < mask.length; i++) {
+      if (drop.contains(comps[i])) mask[i] = 0;
+    }
   }
 
   /// The sensitive thresholds in [_classify] are good at *finding* a

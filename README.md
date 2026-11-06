@@ -13,13 +13,14 @@ Android (câmera ao vivo) continua no repositório, mas não é mais mantido; o 
 1. **Marcadores.** Gere o PDF dos 4 marcadores no app ("Baixar marcadores em PDF"). Imprima em A4, a
    **100%**, recorte na **linha tracejada** e cole um em cada canto do quadro, com a **borda do papel a
    50 mm das bordas** do quadro. Cada folha diz de que canto é.
-2. **Escala.** Com os QR fixos (parede, chão ou quadro), meça uma vez com a trena a distância entre os
-   marcadores — do canto esquerdo de um quadrado preto ao canto esquerdo do outro: os dois de cima para a
-   horizontal, os dois da esquerda para a vertical — e digite em "Escala". Fica salvo no aparelho. Sem ela o
-   app mede a escala pelos próprios QR (cada quadrado preto é uma régua de 18 cm), mas isso varia cerca de 2%
-   de uma foto para outra (papel ondulado, foto a 2 m). A distância digitada vale, a não ser que discorde dos
-   QR em mais de 5% (aí foi medida errado e o app usa os QR e avisa). Confira também se a impressão saiu a
-   100%: o quadrado preto deve medir 18,0 cm.
+2. **Escala (essencial para precisão).** Cole as folhas **lisas e bem coladas** (folha ondulada engana).
+   Meça com a trena, uma vez, a distância **de fora a fora dos quadrados pretos** — da borda de fora de um
+   quadrado preto até a borda de fora do outro, não da folha: os dois de cima para a horizontal, os dois da
+   esquerda para a vertical — e digite em "Escala". Fica salvo no aparelho. A distância digitada sempre vale
+   (o app só avisa se os QR discordarem mais de 3%, e só a ignora acima de 8%, quando foi medida de outro
+   jeito). Sem ela, a escala sai do tamanho dos QR na foto: num teste real com folhas onduladas isso errou
+   3,7% na horizontal (72,4 cm para um papelão de 70 cm); com a trena deu 69,8 cm. Confira também se a
+   impressão saiu a 100%: o quadrado preto deve medir 18,0 cm.
 3. **Foto.** O molde precisa estar **inteiro no mesmo plano dos QR**: deitado no chão com os 4 QR colados no
    chão em volta, ou encostado inteiro num quadro que tem os QR. Molde apoiado na parede com o pé afastado (ou
    sobre calço) não está no plano: a parte de baixo fica mais perto da câmera e sai maior (num teste real, 45 cm

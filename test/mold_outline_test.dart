@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/mold_outline.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/dxf_writer.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/mold_catalog.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/svg_writer.dart';
@@ -92,5 +95,36 @@ void main() {
     expect(String.fromCharCodes(report.take(5)), '%PDF-');
     expect(String.fromCharCodes(label.take(5)), '%PDF-');
     expect(report.length, greaterThan(2000));
+  });
+
+  test(
+    'endireitar: retângulo 700 x 250 colado 1,2° torto volta a 700 x 250',
+    () {
+      const rect = MoldOutline([
+        Point2D(0, 0),
+        Point2D(700, 0),
+        Point2D(700, 250),
+        Point2D(0, 250),
+      ]);
+      final crooked = rect.rotatedBy(1.2);
+      expect(crooked.width, greaterThan(704));
+      final a = crooked.straighteningAngle();
+      expect(a, closeTo(-1.2, 0.11));
+      final s = crooked.rotatedBy(a);
+      expect(s.width, closeTo(700, 0.5));
+      expect(s.height, closeTo(250, 0.5));
+      // a circle has no "straight" orientation
+      expect(MoldCatalog.all[0].outline().straighteningAngle(), 0);
+    },
+  );
+
+  test('distância de fora a fora dos quadrados pretos vira distância entre centros', () {
+    final b = BoardGeometry.fromMarkerSpans(
+      '197,4',
+      '150',
+      outerEdgesSquareMm: 180,
+    )!;
+    expect(b.spanXMm, closeTo(1794, 1e-9));
+    expect(b.spanYMm, closeTo(1320, 1e-9));
   });
 }

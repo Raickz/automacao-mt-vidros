@@ -159,4 +159,51 @@ class MoldOutline {
     }
     return MoldOutline(pts);
   }
+
+  /// Turned by [degrees] (clockwise on screen, y down) around its center.
+  MoldOutline rotatedBy(double degrees) {
+    final a = degrees * pi / 180, c = cos(a), sn = sin(a);
+    final cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    return MoldOutline([
+      for (final p in points)
+        Point2D(
+          cx + (p.x - cx) * c - (p.y - cy) * sn,
+          cy + (p.x - cx) * sn + (p.y - cy) * c,
+        ),
+    ]);
+  }
+
+  /// The small turn (within ±[maxDegrees]) that makes the bounding box
+  /// smallest: a piece taped or photographed slightly crooked is measured
+  /// square to its own edges instead of to the photo. Returns 0 when no
+  /// turn shrinks the box by more than 0.3% (round and organic shapes).
+  double straighteningAngle({double maxDegrees = 8}) {
+    if (points.length < 3) return 0;
+    double area(double deg) {
+      final a = deg * pi / 180, c = cos(a), sn = sin(a);
+      var x0 = double.infinity,
+          x1 = -double.infinity,
+          y0 = double.infinity,
+          y1 = -double.infinity;
+      for (final p in points) {
+        final x = p.x * c - p.y * sn, y = p.x * sn + p.y * c;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+      return (x1 - x0) * (y1 - y0);
+    }
+
+    final base = area(0);
+    var best = 0.0, bestArea = base;
+    for (var d = -maxDegrees; d <= maxDegrees + 1e-9; d += 0.1) {
+      final a = area(d);
+      if (a < bestArea) {
+        bestArea = a;
+        best = d;
+      }
+    }
+    return bestArea < base * 0.997 ? best : 0;
+  }
 }

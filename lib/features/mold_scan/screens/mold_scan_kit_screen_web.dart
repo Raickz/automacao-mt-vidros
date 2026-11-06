@@ -72,6 +72,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   BoardGeometry? get _typedBoard => BoardGeometry.fromMarkerSpans(
     _boardWidthController.text,
     _boardHeightController.text,
+    outerEdgesSquareMm: _printedMm ?? 180,
   );
 
   double? get _printedMm {
@@ -106,7 +107,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     final board = _typedBoard;
     if (board == null) {
       fail(
-        '${BoardGeometry.spanHint} Ou deixe os dois campos em branco para medir pelos QR.',
+        '${BoardGeometry.spanHint} Ou deixe os dois em branco para a escala sair dos QR (menos preciso).',
       );
       return null;
     }
@@ -247,23 +248,38 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
 
   /// The mold's top face is closer to the camera than the board, so it looks
   /// bigger; take that off using the thickness typed in the project data.
-  List<Point2D> _shown(List<Point2D> contour) =>
+  List<Point2D> _corrected(List<Point2D> contour) =>
       CameraPoseEstimator.correctForThickness(
         contour,
         _pose,
         _project.thicknessMm,
       );
 
+  List<Point2D> _shown(List<Point2D> contour) {
+    final corrected = MoldOutline(_corrected(contour));
+    // A piece taped slightly crooked is measured square to its own edges.
+    final angle = corrected.straighteningAngle();
+    return angle == 0 ? corrected.points : corrected.rotatedBy(angle).points;
+  }
+
   String _resultNote(List<Point2D> raw, List<Point2D> shown) {
     final board = _resultBoard;
     String cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
+    final sq = _printedMm ?? 180;
     final scale = board == null
         ? ''
         : _scaleFromMarkers
-        ? 'Distância entre os marcadores, medida pelos QR: ${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. '
-        : 'Distância entre os marcadores digitada e conferida pelos QR: '
-              '${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. ';
-    return '$scale${_thicknessNote(raw, shown)}';
+        ? 'Escala pelos QR (menos precisa): de fora a fora dos quadrados pretos daria '
+              '${cm(board.spanXMm + sq)} × ${cm(board.spanYMm + sq)} cm. Para precisão de milímetro, meça com a '
+              'trena e digite em "Escala". '
+        : 'Escala pela trena: ${cm(board.spanXMm + sq)} × ${cm(board.spanYMm + sq)} cm de fora a fora dos '
+              'quadrados pretos. ';
+    final angle = MoldOutline(_corrected(raw)).straighteningAngle();
+    final straight = angle == 0
+        ? ''
+        : 'O molde estava ${angle.abs().toStringAsFixed(1).replaceAll('.', ',')}° torto na foto; medi '
+              'endireitado. ';
+    return '$scale$straight${_thicknessNote(raw, _corrected(raw))}';
   }
 
   String _thicknessNote(List<Point2D> raw, List<Point2D> shown) {
@@ -734,7 +750,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                         ),
                         const SizedBox(height: 18),
                         const Text(
-                          'Distância entre os marcadores (recomendado)',
+                          'Distância entre os quadrados pretos, de fora a fora',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
@@ -751,8 +767,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                                       decimal: true,
                                     ),
                                 decoration: const InputDecoration(
-                                  labelText: 'Na horizontal (cm)',
-                                  hintText: 'automático',
+                                  labelText: 'Horizontal (cm)',
+                                  hintText: 'ex: 197,4',
                                 ),
                                 onChanged: (_) => _spansChanged(),
                               ),
@@ -766,8 +782,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                                       decimal: true,
                                     ),
                                 decoration: const InputDecoration(
-                                  labelText: 'Na vertical (cm)',
-                                  hintText: 'automático',
+                                  labelText: 'Vertical (cm)',
+                                  hintText: 'ex: 150,0',
                                 ),
                                 onChanged: (_) => _spansChanged(),
                               ),
@@ -776,11 +792,11 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Com os QR fixos, meça uma vez com a trena e digite: fica salvo neste aparelho e deixa a '
-                          'medida mais precisa (pelos QR a escala varia cerca de 2% de uma foto para outra). Meça do '
-                          'canto esquerdo de um quadrado preto até o canto esquerdo do outro: os dois de cima para a '
-                          'horizontal, os dois da esquerda para a vertical. Em branco, a escala sai dos QR. Se mudar '
-                          'os QR de lugar, meça de novo.',
+                          'Essencial para precisão de milímetro. Com a trena, meça da borda de fora de um quadrado '
+                          'preto até a borda de fora do outro (o preto, não a folha branca): os dois de cima para a '
+                          'horizontal, os dois da esquerda para a vertical. Fica salvo neste aparelho; se mudar os QR '
+                          'de lugar, meça de novo. Em branco, a escala sai do tamanho dos QR na foto, que erra até 4% '
+                          'quando a folha está ondulada ou descolada.',
                           style: TextStyle(
                             color: MoldScanColors.textSecondary,
                             fontSize: 14,

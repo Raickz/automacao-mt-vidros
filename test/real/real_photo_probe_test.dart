@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:mt_vidros_app/features/mold_scan/services/camera_pose.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/contour_extractor.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/mold_outline.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/mold_scan_pipeline.dart';
 
@@ -52,6 +53,12 @@ void main() {
                 r.cameraPose,
                 t,
               );
+        final o = MoldOutline(contour);
+        final ang = o.straighteningAngle();
+        final st = boundingBox(o.rotatedBy(ang).points);
+        print(
+          '  endireitado ${ang.toStringAsFixed(1)} graus: ${st.width.toStringAsFixed(1)} x ${st.height.toStringAsFixed(1)} mm',
+        );
         final b = boundingBox(contour);
         final out = Platform.environment['MT_PREVIEW_DIR'];
         if (out != null) {
@@ -78,6 +85,23 @@ void main() {
             xs.sort();
             print(
               '  largura a ${(f * 100).round()}%: ${(xs.last - xs.first).toStringAsFixed(1)}',
+            );
+          }
+        }
+        final x0 = b.minX, x1 = b.minX + b.width;
+        for (var f = 0.1; f < 1; f += 0.2) {
+          final x = x0 + (x1 - x0) * f + 0.37;
+          final ys = <double>[];
+          for (var i = 0; i < pts.length; i++) {
+            final a = pts[i], c = pts[(i + 1) % pts.length];
+            if ((a.x > x) != (c.x > x)) {
+              ys.add(a.y + (x - a.x) * (c.y - a.y) / (c.x - a.x));
+            }
+          }
+          if (ys.length >= 2) {
+            ys.sort();
+            print(
+              '  altura a ${(f * 100).round()}%: ${(ys.last - ys.first).toStringAsFixed(1)}',
             );
           }
         }
