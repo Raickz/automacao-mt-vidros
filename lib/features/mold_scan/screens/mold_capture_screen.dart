@@ -32,7 +32,11 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
       (c) => c.lensDirection == CameraLensDirection.back,
       orElse: () => cameras.first,
     );
-    final controller = CameraController(backCamera, ResolutionPreset.ultraHigh, enableAudio: false);
+    final controller = CameraController(
+      backCamera,
+      ResolutionPreset.ultraHigh,
+      enableAudio: false,
+    );
     await controller.initialize();
     if (!mounted) return;
     setState(() => _controller = controller);
@@ -55,7 +59,10 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
 
     try {
       final photo = await controller.takePicture();
-      final result = await MoldScanService().scanContourFromPhoto(photo.path, board: widget.board);
+      final result = await MoldScanService().scanContourFromPhoto(
+        photo.path,
+        board: widget.board,
+      );
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -89,7 +96,8 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
       body: FutureBuilder<void>(
         future: _initialization,
         builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done || _controller == null) {
+          if (snapshot.connectionState != ConnectionState.done ||
+              _controller == null) {
             return const Center(child: CircularProgressIndicator());
           }
           return Stack(
@@ -101,7 +109,10 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
                 bottom: 0,
                 child: Container(
                   color: Colors.black.withValues(alpha: 0.65),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   child: SafeArea(
                     top: false,
                     child: Column(
@@ -127,10 +138,14 @@ class _MoldCaptureScreenState extends State<MoldCaptureScreen> {
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
                               : const Icon(Icons.camera_alt),
-                          label: Text(_processing ? 'Processando...' : 'Capturar'),
+                          label: Text(
+                            _processing ? 'Processando...' : 'Capturar',
+                          ),
                         ),
                       ],
                     ),

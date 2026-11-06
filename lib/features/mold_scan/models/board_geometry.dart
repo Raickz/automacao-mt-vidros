@@ -13,7 +13,10 @@ class BoardGeometry {
 
   /// Board whose marker centers are [spanXMm] x [spanYMm] apart.
   factory BoardGeometry.fromSpansMm(double spanXMm, double spanYMm) =>
-      BoardGeometry(widthMm: spanXMm + 2 * markerInsetMm, heightMm: spanYMm + 2 * markerInsetMm);
+      BoardGeometry(
+        widthMm: spanXMm + 2 * markerInsetMm,
+        heightMm: spanYMm + 2 * markerInsetMm,
+      );
 
   /// Distance between marker centers, horizontally and vertically.
   double get spanXMm => widthMm - 2 * markerInsetMm;
@@ -25,7 +28,8 @@ class BoardGeometry {
   );
 
   /// Distance from the board edge to the center of a marker.
-  static const markerInsetMm = MoldBoardSpec.markerMarginMm + MoldBoardSpec.markerSizeMm / 2;
+  static const markerInsetMm =
+      MoldBoardSpec.markerMarginMm + MoldBoardSpec.markerSizeMm / 2;
 
   /// Largest board area accepted. At 1 px/mm the photo is flattened into one
   /// pixel per mm², and the buffers needed grow with the area: 8 m² (4 x 2 m)
@@ -35,7 +39,9 @@ class BoardGeometry {
   /// Marker centers must be far enough apart for the perspective math to be
   /// meaningful, and the board small enough to process.
   bool get isUsable =>
-      widthMm >= 4 * markerInsetMm && heightMm >= 4 * markerInsetMm && widthMm * heightMm <= maxAreaMm2;
+      widthMm >= 4 * markerInsetMm &&
+      heightMm >= 4 * markerInsetMm &&
+      widthMm * heightMm <= maxAreaMm2;
 
   /// Reads the two size fields the user types, in cm (comma or dot decimals).
   /// Returns null when a value is not a number or the board is not [isUsable].
@@ -65,6 +71,7 @@ class BoardGeometry {
       'Informe a distância entre os marcadores, em cm, medida do canto esquerdo de um quadrado preto até o '
       'canto esquerdo do outro. Cada medida precisa ter 30 cm ou mais, e o quadro todo no máximo 8 m².';
 
-  static const sizeHint = 'Informe a largura e a altura reais do quadro, em cm: cada lado a partir de 60 cm '
+  static const sizeHint =
+      'Informe a largura e a altura reais do quadro, em cm: cada lado a partir de 60 cm '
       'e a área de até 8 m² (por exemplo, 400 × 200 cm).';
 }

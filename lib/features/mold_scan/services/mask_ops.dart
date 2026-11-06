@@ -59,7 +59,13 @@ Uint8List closeGaps(Uint8List mask, int w, int h, int r) =>
 /// piece that stands on it, would otherwise be restored for [r] pixels on each
 /// side of the piece and widen it.
 void dropSlivers(Uint8List mask, int w, int h, int r, {int edgeZone = 0}) {
-  final opened = boxMorph(boxMorph(mask, w, h, r, erode: true), w, h, r, erode: false);
+  final opened = boxMorph(
+    boxMorph(mask, w, h, r, erode: true),
+    w,
+    h,
+    r,
+    erode: false,
+  );
   final near = boxMorph(opened, w, h, r, erode: false);
   final tight = edgeZone > 0 ? boxMorph(opened, w, h, 1, erode: false) : near;
   for (var y = 0; y < h; y++) {
@@ -75,7 +81,11 @@ void dropSlivers(Uint8List mask, int w, int h, int r, {int edgeZone = 0}) {
 
 /// Labels the 8-connected blobs of [mask] (labels start at 1) and reports the
 /// biggest one. With no blob, `bestCount` is 0.
-({Int32List labels, int bestLabel, int bestCount}) labelLargest(Uint8List mask, int w, int h) {
+({Int32List labels, int bestLabel, int bestCount}) labelLargest(
+  Uint8List mask,
+  int w,
+  int h,
+) {
   final n = w * h;
   final labels = Int32List(n);
   final stack = Int32List(n);

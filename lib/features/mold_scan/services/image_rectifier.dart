@@ -65,7 +65,12 @@ class ImageRectifier {
         final i11 = (y1 * srcW + x1) * 3;
         for (var c = 0; c < 3; c++) {
           dst[o + c] =
-              (src[i00 + c] * w00 + src[i10 + c] * w10 + src[i01 + c] * w01 + src[i11 + c] * w11 + 0.5).toInt();
+              (src[i00 + c] * w00 +
+                      src[i10 + c] * w10 +
+                      src[i01 + c] * w01 +
+                      src[i11 + c] * w11 +
+                      0.5)
+                  .toInt();
         }
       }
     }

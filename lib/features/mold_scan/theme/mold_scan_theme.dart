@@ -10,29 +10,33 @@ class MoldScanType {
   static const display = 'BarlowCondensed';
 
   static TextStyle headline(double size) => TextStyle(
-        fontFamily: display,
-        fontSize: size,
-        fontWeight: FontWeight.w600,
-        height: 1.02,
-        color: MoldScanColors.textPrimary,
-      );
+    fontFamily: display,
+    fontSize: size,
+    fontWeight: FontWeight.w600,
+    height: 1.02,
+    color: MoldScanColors.textPrimary,
+  );
 
   /// Big numbers (measurements). Tabular figures keep digits from jittering
   /// between photos.
   static TextStyle readout(double size) => TextStyle(
-        fontFamily: display,
-        fontSize: size,
-        fontWeight: FontWeight.w700,
-        height: 1,
-        color: MoldScanColors.textPrimary,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
+    fontFamily: display,
+    fontSize: size,
+    fontWeight: FontWeight.w700,
+    height: 1,
+    color: MoldScanColors.textPrimary,
+    fontFeatures: const [FontFeature.tabularFigures()],
+  );
 }
 
 /// Theme for the whole app — the mold scanner is the only tool in it.
 class MoldScanTheme {
   static ThemeData dark() {
-    final base = ThemeData(brightness: Brightness.dark, useMaterial3: true, fontFamily: MoldScanType.text);
+    final base = ThemeData(
+      brightness: Brightness.dark,
+      useMaterial3: true,
+      fontFamily: MoldScanType.text,
+    );
     return base.copyWith(
       scaffoldBackgroundColor: MoldScanColors.background,
       colorScheme: base.colorScheme.copyWith(
@@ -73,7 +77,10 @@ class MoldScanTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(4),
-          borderSide: const BorderSide(color: MoldScanColors.accent, width: 1.6),
+          borderSide: const BorderSide(
+            color: MoldScanColors.accent,
+            width: 1.6,
+          ),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(

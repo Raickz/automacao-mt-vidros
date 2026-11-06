@@ -105,7 +105,10 @@ class MarkerScale {
       for (var d = -6.0; d <= 6.0; d += 0.1) {
         final v = luminance(along(d));
         if (v.isNaN) return null;
-        if (prevV != null && prevD != null && prevV >= threshold && v < threshold) {
+        if (prevV != null &&
+            prevD != null &&
+            prevV >= threshold &&
+            v < threshold) {
           return prevD + (prevV - threshold) / (prevV - v) * (d - prevD);
         }
         prevD = d;
@@ -119,11 +122,18 @@ class MarkerScale {
       final c = corner.knownPositionMm(board);
       final half = printedSizeMm / 2;
       final finder = printedSizeMm * 7 / corner.moduleCount;
-      final left = c.x - half, right = c.x + half, top = c.y - half, bottom = c.y + half;
+      final left = c.x - half,
+          right = c.x + half,
+          top = c.y - half,
+          bottom = c.y + half;
 
       // Which corners hold finders, from the decoder's points in board mm.
-      final finders = [for (final f in [m.topLeft, m.topRight, m.bottomLeft]) pixelToMm.apply(f)];
-      bool occupied(bool upper, bool leftSide) => finders.any((p) => (p.y < c.y) == upper && (p.x < c.x) == leftSide);
+      final finders = [
+        for (final f in [m.topLeft, m.topRight, m.bottomLeft])
+          pixelToMm.apply(f),
+      ];
+      bool occupied(bool upper, bool leftSide) =>
+          finders.any((p) => (p.y < c.y) == upper && (p.x < c.x) == leftSide);
       final rowsAtTop = occupied(true, true) && occupied(true, false);
       final colsAtLeft = occupied(true, true) && occupied(false, true);
 

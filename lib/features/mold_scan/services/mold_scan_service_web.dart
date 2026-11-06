@@ -14,6 +14,11 @@ class MoldScanService {
     double printedMarkerMm = 180,
     Future<void> Function(String stage)? onStage,
   }) {
-    return MoldScanPipeline.run(bytes, board: board, printedMarkerMm: printedMarkerMm, onStage: onStage);
+    return MoldScanPipeline.run(
+      bytes,
+      board: board,
+      printedMarkerMm: printedMarkerMm,
+      onStage: onStage,
+    );
   }
 }

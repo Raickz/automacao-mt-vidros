@@ -18,9 +18,15 @@ class DxfWriter {
   /// [comments] are written as DXF comment lines (code 999) at the top, so
   /// the project data typed by the worker (material, thickness, cutting
   /// instructions) travels inside the file. Comments are plain ASCII.
-  static String write(List<Point2D> points, {String layer = 'MOLDE', List<String> comments = const []}) {
+  static String write(
+    List<Point2D> points, {
+    String layer = 'MOLDE',
+    List<String> comments = const [],
+  }) {
     if (points.length < 3) {
-      throw ArgumentError('Contorno precisa de pelo menos 3 pontos, recebeu ${points.length}');
+      throw ArgumentError(
+        'Contorno precisa de pelo menos 3 pontos, recebeu ${points.length}',
+      );
     }
 
     final minX = points.map((p) => p.x).reduce(min);
@@ -67,10 +73,15 @@ class DxfWriter {
 
   /// File name carrying what the operator needs at a glance, e.g.
   /// `Porta_01_vidro_4mm.dxf`.
-  static String fileName({required String name, String material = '', double? thicknessMm}) {
-    String clean(String s) => _ascii(s.trim())
-        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
-        .replaceAll(RegExp(r'^_+|_+$'), '');
+  static String fileName({
+    required String name,
+    String material = '',
+    double? thicknessMm,
+  }) {
+    String clean(String s) =>
+        _ascii(s.trim())
+            .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
+            .replaceAll(RegExp(r'^_+|_+$'), '');
     final base = clean(name);
     final mat = clean(material).toLowerCase();
     final thickness = (thicknessMm != null && thicknessMm > 0)

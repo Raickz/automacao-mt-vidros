@@ -99,8 +99,15 @@ class CameraPoseEstimator {
   ///
   /// Done on a 1px/mm raster of the outline. Without pose or thickness the
   /// outline is returned untouched.
-  static List<Point2D> correctForThickness(List<Point2D> contour, CameraPose? pose, double? thicknessMm) {
-    if (pose == null || thicknessMm == null || thicknessMm <= 0 || thicknessMm >= pose.heightMm / 2) {
+  static List<Point2D> correctForThickness(
+    List<Point2D> contour,
+    CameraPose? pose,
+    double? thicknessMm,
+  ) {
+    if (pose == null ||
+        thicknessMm == null ||
+        thicknessMm <= 0 ||
+        thicknessMm >= pose.heightMm / 2) {
       return contour;
     }
     if (contour.length < 3) return contour;
@@ -122,7 +129,12 @@ class CameraPoseEstimator {
         final cx = x0 + x + 0.5;
         final sx = (nx + (cx - nx) * k - x0).floor();
         final sy = (ny + (cy - ny) * k - y0).floor();
-        if (sx >= 0 && sy >= 0 && sx < w && sy < h && silhouette[sy * w + sx] != 0) base[i] = 1;
+        if (sx >= 0 &&
+            sy >= 0 &&
+            sx < w &&
+            sy < h &&
+            silhouette[sy * w + sx] != 0)
+          base[i] = 1;
       }
     }
 
@@ -135,14 +147,21 @@ class CameraPoseEstimator {
       h,
     );
     final mm = [
-      for (final p in ContourExtractor.boundaryToMillimeters(boundary, 1)) Point2D(p.x + x0, p.y + y0),
+      for (final p in ContourExtractor.boundaryToMillimeters(boundary, 1))
+        Point2D(p.x + x0, p.y + y0),
     ];
     return PolylineSimplifier.simplify(mm, 0.8);
   }
 
   /// Even-odd fill of [polygon] on a grid whose pixel (0,0) covers
   /// [x0, x0+1) x [y0, y0+1); a pixel is inside when its center is.
-  static Uint8List _rasterize(List<Point2D> polygon, int x0, int y0, int w, int h) {
+  static Uint8List _rasterize(
+    List<Point2D> polygon,
+    int x0,
+    int y0,
+    int w,
+    int h,
+  ) {
     final out = Uint8List(w * h);
     final crossings = <double>[];
     for (var y = 0; y < h; y++) {

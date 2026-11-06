@@ -46,7 +46,10 @@ class _MoldResultScreenState extends State<MoldResultScreen> {
 
       if (!mounted) return;
       await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path)], text: 'Molde MT Vidros — ${_project.name.text.trim()}'),
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'Molde MT Vidros — ${_project.name.text.trim()}',
+        ),
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -56,7 +59,9 @@ class _MoldResultScreenState extends State<MoldResultScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Molde digitalizado', style: MoldScanType.headline(24))),
+      appBar: AppBar(
+        title: Text('Molde digitalizado', style: MoldScanType.headline(24)),
+      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -67,7 +72,10 @@ class _MoldResultScreenState extends State<MoldResultScreen> {
                 if (widget.previewPng != null) ...[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
-                    child: Image.memory(widget.previewPng!, fit: BoxFit.contain),
+                    child: Image.memory(
+                      widget.previewPng!,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -75,20 +83,31 @@ class _MoldResultScreenState extends State<MoldResultScreen> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.only(top: 9, right: 10),
-                        child: Container(width: 26, height: 3, color: MoldScanColors.cut),
+                        child: Container(
+                          width: 26,
+                          height: 3,
+                          color: MoldScanColors.cut,
+                        ),
                       ),
                       const Expanded(
                         child: Text(
                           'Contorno medido. Ele deve acompanhar a borda externa do molde, de ponta a '
                           'ponta. Se não acompanhar, refaça a foto.',
-                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14.5, height: 1.4),
+                          style: TextStyle(
+                            color: MoldScanColors.textSecondary,
+                            fontSize: 14.5,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
                 ],
-                MeasurementSummary(contour: widget.contourMm, warnings: widget.warnings),
+                MeasurementSummary(
+                  contour: widget.contourMm,
+                  warnings: widget.warnings,
+                ),
                 const SizedBox(height: 28),
                 ProjectFields(data: _project),
                 const SizedBox(height: 24),

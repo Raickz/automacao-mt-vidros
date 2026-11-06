@@ -17,7 +17,9 @@ class Homography {
 
   factory Homography.fromCorrespondences(List<Point2D> src, List<Point2D> dst) {
     if (src.length != 4 || dst.length != 4) {
-      throw ArgumentError('Homografia requer exatamente 4 correspondências de pontos');
+      throw ArgumentError(
+        'Homografia requer exatamente 4 correspondências de pontos',
+      );
     }
 
     final a = List.generate(8, (_) => List<double>.filled(8, 0));
@@ -47,9 +49,15 @@ class Homography {
     final h = _solveLinearSystem(a, b);
     // h holds [h0..h7]; h8 is fixed at 1 (standard DLT normalization).
     final matrix = Matrix3.fromList([
-      h[0], h[3], h[6],
-      h[1], h[4], h[7],
-      h[2], h[5], 1.0,
+      h[0],
+      h[3],
+      h[6],
+      h[1],
+      h[4],
+      h[7],
+      h[2],
+      h[5],
+      1.0,
     ]);
     return Homography._(matrix);
   }
@@ -83,7 +91,9 @@ class Homography {
         }
       }
       if (maxVal < 1e-12) {
-        throw StateError('Sistema singular ao calcular homografia (pontos colineares ou repetidos)');
+        throw StateError(
+          'Sistema singular ao calcular homografia (pontos colineares ou repetidos)',
+        );
       }
       if (pivotRow != col) {
         final tmpRow = a[col];

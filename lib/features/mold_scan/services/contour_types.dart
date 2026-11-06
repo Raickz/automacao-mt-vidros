@@ -6,7 +6,12 @@ class MmRect {
   final double right;
   final double bottom;
 
-  const MmRect({required this.left, required this.top, required this.right, required this.bottom});
+  const MmRect({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
 }
 
 class ContourExtractionException implements Exception {
@@ -25,5 +30,9 @@ class ContourResult {
   /// 'à esquerda', 'à direita'): anything beyond them was cut off.
   final List<String> touchedSides;
 
-  const ContourResult({required this.contourMm, required this.areaPx, this.touchedSides = const []});
+  const ContourResult({
+    required this.contourMm,
+    required this.areaPx,
+    this.touchedSides = const [],
+  });
 }

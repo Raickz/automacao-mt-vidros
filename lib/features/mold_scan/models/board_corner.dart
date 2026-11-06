@@ -26,12 +26,14 @@ extension BoardCornerX on BoardCorner {
   }
 
   /// Modules per side of the printed QR (same settings as the PDF).
-  int get moduleCount =>
-      QrImage(QrCode.fromData(data: payload, errorCorrectLevel: QrErrorCorrectLevel.H)).moduleCount;
+  int get moduleCount => QrImage(
+    QrCode.fromData(data: payload, errorCorrectLevel: QrErrorCorrectLevel.H),
+  ).moduleCount;
 
   /// Distance between the centers of two finder patterns of the printed code:
   /// they sit 3.5 modules in from each side.
-  double finderSpanMm(double printedSizeMm) => printedSizeMm * (moduleCount - 7) / moduleCount;
+  double finderSpanMm(double printedSizeMm) =>
+      printedSizeMm * (moduleCount - 7) / moduleCount;
 
   static BoardCorner? fromPayload(String payload) {
     for (final corner in BoardCorner.values) {
@@ -65,7 +67,10 @@ extension BoardCornerX on BoardCorner {
   /// for the mold. Padding scales with marker size, floored at 8mm.
   MmRect markerExclusionRectMm([BoardGeometry board = BoardGeometry.standard]) {
     final center = knownPositionMm(board);
-    final padding = (MoldBoardSpec.markerSizeMm * 0.15).clamp(8, double.infinity);
+    final padding = (MoldBoardSpec.markerSizeMm * 0.15).clamp(
+      8,
+      double.infinity,
+    );
     final halfSize = MoldBoardSpec.markerSizeMm / 2 + padding;
     return MmRect(
       left: center.x - halfSize,

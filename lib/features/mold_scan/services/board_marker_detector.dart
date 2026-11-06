@@ -25,7 +25,12 @@ class DetectedMarker {
   final Point2D topRight;
   final Point2D bottomLeft;
 
-  const DetectedMarker({required this.center, required this.topLeft, required this.topRight, required this.bottomLeft});
+  const DetectedMarker({
+    required this.center,
+    required this.topLeft,
+    required this.topRight,
+    required this.bottomLeft,
+  });
 }
 
 class BoardMarkerDetector {
@@ -37,7 +42,11 @@ class BoardMarkerDetector {
     final side = max(image.width, image.height);
     final scale = side > _maxWorkSide ? _maxWorkSide / side : 1.0;
     final work = scale < 1
-        ? img.copyResize(image, width: (image.width * scale).round(), interpolation: img.Interpolation.average)
+        ? img.copyResize(
+            image,
+            width: (image.width * scale).round(),
+            interpolation: img.Interpolation.average,
+          )
         : image;
     _scan(work, 1 / scale, 0, 0, found);
 
@@ -102,7 +111,8 @@ class BoardMarkerDetector {
 
       final corner = BoardCornerX.fromPayload(result.text);
       if (corner != null && !found.containsKey(corner)) {
-        Point2D toPhoto(double x, double y) => Point2D(offsetX + x * pointScale, offsetY + y * pointScale);
+        Point2D toPhoto(double x, double y) =>
+            Point2D(offsetX + x * pointScale, offsetY + y * pointScale);
         found[corner] = DetectedMarker(
           center: toPhoto(cx, cy),
           topLeft: toPhoto(tl.x, tl.y),
@@ -112,8 +122,10 @@ class BoardMarkerDetector {
       }
 
       final radius = sqrt(pow(tr.x - bl.x, 2) + pow(tr.y - bl.y, 2)) / 2 * 1.9;
-      final x0 = max(0, (cx - radius).floor()), x1 = min(w - 1, (cx + radius).ceil());
-      final y0 = max(0, (cy - radius).floor()), y1 = min(h - 1, (cy + radius).ceil());
+      final x0 = max(0, (cx - radius).floor()),
+          x1 = min(w - 1, (cx + radius).ceil());
+      final y0 = max(0, (cy - radius).floor()),
+          y1 = min(h - 1, (cy + radius).ceil());
       for (var y = y0; y <= y1; y++) {
         pixels.fillRange(y * w + x0, y * w + x1 + 1, 0xFFFFFFFF);
       }
@@ -129,7 +141,9 @@ class BoardMarkerDetector {
     for (final (hybrid, harder) in attempts) {
       try {
         final source = RGBLuminanceSource(w, h, pixels);
-        final binarizer = hybrid ? HybridBinarizer(source) : GlobalHistogramBinarizer(source);
+        final binarizer = hybrid
+            ? HybridBinarizer(source)
+            : GlobalHistogramBinarizer(source);
         final hints = DecodeHints();
         if (harder) hints.put(DecodeHintType.tryHarder);
         return QRCodeReader().decode(BinaryBitmap(binarizer), hints: hints);

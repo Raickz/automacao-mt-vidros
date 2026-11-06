@@ -16,8 +16,13 @@ class BackgroundModel {
 
   const BackgroundModel._(this._a, this._b, this._c, this._w, this._h);
 
-  factory BackgroundModel.constant(int r, int g, int b) =>
-      BackgroundModel._([0, 0, 0], [0, 0, 0], [r.toDouble(), g.toDouble(), b.toDouble()], 1, 1);
+  factory BackgroundModel.constant(int r, int g, int b) => BackgroundModel._(
+    [0, 0, 0],
+    [0, 0, 0],
+    [r.toDouble(), g.toDouble(), b.toDouble()],
+    1,
+    1,
+  );
 
   (double, double, double) colorAt(int x, int y) {
     final u = x / _w, v = y / _h;
@@ -54,8 +59,10 @@ class BackgroundModel {
     final yLo = px(clearY, h), yHi = px(boardHeightMm - clearY, h);
     final s0x = px(stripStartMm, w), s1x = px(stripEndMm, w);
     final s0y = px(stripStartMm, h), s1y = px(stripEndMm, h);
-    final e0x = px(boardWidthMm - stripEndMm, w), e1x = px(boardWidthMm - stripStartMm, w);
-    final e0y = px(boardHeightMm - stripEndMm, h), e1y = px(boardHeightMm - stripStartMm, h);
+    final e0x = px(boardWidthMm - stripEndMm, w),
+        e1x = px(boardWidthMm - stripStartMm, w);
+    final e0y = px(boardHeightMm - stripEndMm, h),
+        e1y = px(boardHeightMm - stripStartMm, h);
 
     final xs = <double>[], ys = <double>[];
     final cs = [<double>[], <double>[], <double>[]];
@@ -82,7 +89,9 @@ class BackgroundModel {
     sample(3, e0x, e1x, yLo, yHi);
 
     if (xs.length < 20) {
-      throw const ContourExtractionException('Imagem pequena demais para estimar a cor do quadro.');
+      throw const ContourExtractionException(
+        'Imagem pequena demais para estimar a cor do quadro.',
+      );
     }
 
     final kept = consistentSamples(strips, cs);
@@ -106,7 +115,10 @@ class BackgroundModel {
   /// board's color *direction* (so a lighting gradient doesn't count as
   /// disagreement, but wood against a gray wall or blue paint does). [strips]
   /// holds each strip's sample indexes, [cs] the R, G, B value of every sample.
-  static List<int> consistentSamples(List<List<int>> strips, List<List<double>> cs) {
+  static List<int> consistentSamples(
+    List<List<int>> strips,
+    List<List<double>> cs,
+  ) {
     final all = [for (final s in strips) ...s];
     final med = <List<double>>[];
     final norms = <double>[];
@@ -116,7 +128,10 @@ class BackgroundModel {
         norms.add(0);
         continue;
       }
-      final m = [for (var ch = 0; ch < 3; ch++) _median([for (final i in idx) cs[ch][i]])];
+      final m = [
+        for (var ch = 0; ch < 3; ch++)
+          _median([for (final i in idx) cs[ch][i]]),
+      ];
       med.add(m);
       norms.add(sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]));
     }
@@ -127,14 +142,19 @@ class BackgroundModel {
     if (valid.length < 3) return all;
 
     List<double> unit(int s) => [for (final v in med[s]) v / norms[s]];
-    final refUnit = [for (var ch = 0; ch < 3; ch++) _median([for (final s in valid) unit(s)[ch]])];
+    final refUnit = [
+      for (var ch = 0; ch < 3; ch++)
+        _median([for (final s in valid) unit(s)[ch]]),
+    ];
     final refNorm = _median([for (final s in valid) norms[s]]);
 
     final inliers = <int>[];
     for (final s in valid) {
       final u = unit(s);
       final d = sqrt(
-        pow(u[0] - refUnit[0], 2) + pow(u[1] - refUnit[1], 2) + pow(u[2] - refUnit[2], 2),
+        pow(u[0] - refUnit[0], 2) +
+            pow(u[1] - refUnit[1], 2) +
+            pow(u[2] - refUnit[2], 2),
       );
       final ratio = norms[s] / refNorm;
       if (d <= 0.07 && ratio >= 0.55 && ratio <= 1.8) inliers.add(s);
@@ -145,7 +165,13 @@ class BackgroundModel {
 
   /// Robust least-squares plane fit per channel: fit, drop samples whose
   /// residual is far above the median, refit.
-  factory BackgroundModel.fit(List<double> xs, List<double> ys, List<List<double>> cs, int w, int h) {
+  factory BackgroundModel.fit(
+    List<double> xs,
+    List<double> ys,
+    List<List<double>> cs,
+    int w,
+    int h,
+  ) {
     var keep = List<bool>.filled(xs.length, true);
     final a = [0.0, 0.0, 0.0], b = [0.0, 0.0, 0.0], c = [0.0, 0.0, 0.0];
 
@@ -176,8 +202,21 @@ class BackgroundModel {
     return BackgroundModel._(a, b, c, w, h);
   }
 
-  static List<double> _fitPlane(List<double> xs, List<double> ys, List<double> zs, List<bool> keep) {
-    double sxx = 0, sxy = 0, sx = 0, syy = 0, sy = 0, sn = 0, sxz = 0, syz = 0, sz = 0;
+  static List<double> _fitPlane(
+    List<double> xs,
+    List<double> ys,
+    List<double> zs,
+    List<bool> keep,
+  ) {
+    double sxx = 0,
+        sxy = 0,
+        sx = 0,
+        syy = 0,
+        sy = 0,
+        sn = 0,
+        sxz = 0,
+        syz = 0,
+        sz = 0;
     for (var i = 0; i < xs.length; i++) {
       if (!keep[i]) continue;
       final x = xs[i], y = ys[i], z = zs[i];
@@ -192,11 +231,26 @@ class BackgroundModel {
       sz += z;
     }
     // Solve [[sxx sxy sx],[sxy syy sy],[sx sy sn]] * [a b c] = [sxz syz sz].
-    final det = sxx * (syy * sn - sy * sy) - sxy * (sxy * sn - sy * sx) + sx * (sxy * sy - syy * sx);
+    final det =
+        sxx * (syy * sn - sy * sy) -
+        sxy * (sxy * sn - sy * sx) +
+        sx * (sxy * sy - syy * sx);
     if (det.abs() < 1e-9) return [0, 0, sz / max(sn, 1)];
-    final a = (sxz * (syy * sn - sy * sy) - sxy * (syz * sn - sy * sz) + sx * (syz * sy - syy * sz)) / det;
-    final b = (sxx * (syz * sn - sy * sz) - sxz * (sxy * sn - sy * sx) + sx * (sxy * sz - syz * sx)) / det;
-    final c = (sxx * (syy * sz - syz * sy) - sxy * (sxy * sz - syz * sx) + sxz * (sxy * sy - syy * sx)) / det;
+    final a =
+        (sxz * (syy * sn - sy * sy) -
+            sxy * (syz * sn - sy * sz) +
+            sx * (syz * sy - syy * sz)) /
+        det;
+    final b =
+        (sxx * (syz * sn - sy * sz) -
+            sxz * (sxy * sn - sy * sx) +
+            sx * (sxy * sz - syz * sx)) /
+        det;
+    final c =
+        (sxx * (syy * sz - syz * sy) -
+            sxy * (sxy * sz - syz * sx) +
+            sxz * (sxy * sy - syy * sx)) /
+        det;
     return [a, b, c];
   }
 }

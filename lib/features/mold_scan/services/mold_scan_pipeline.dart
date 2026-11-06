@@ -91,7 +91,9 @@ class MoldScanPipeline {
       throw const MoldScanException(BoardGeometry.spanHint);
     }
     if (printedMarkerMm < 120 || printedMarkerMm > 240) {
-      throw const MoldScanException('Informe o lado do quadrado preto impresso, em cm (o normal é 18,0).');
+      throw const MoldScanException(
+        'Informe o lado do quadrado preto impresso, em cm (o normal é 18,0).',
+      );
     }
 
     Future<void> stage(String s) async {
@@ -105,9 +107,12 @@ class MoldScanPipeline {
     await stage('Lendo a foto...');
     var photo = img.decodeImage(bytes);
     if (photo == null) {
-      throw const MoldScanException('Não foi possível ler a imagem enviada. Use uma foto JPG ou PNG.');
+      throw const MoldScanException(
+        'Não foi possível ler a imagem enviada. Use uma foto JPG ou PNG.',
+      );
     }
-    if (photo.exif.imageIfd.hasOrientation && photo.exif.imageIfd.orientation != 1) {
+    if (photo.exif.imageIfd.hasOrientation &&
+        photo.exif.imageIfd.orientation != 1) {
       photo = img.bakeOrientation(photo);
     }
     final longSide = max(photo.width, photo.height);
@@ -136,7 +141,13 @@ class MoldScanPipeline {
 
     await stage('Medindo a escala pelos marcadores...');
     var geometry = board ?? BoardGeometry.standard;
-    final measured = _measureSpacing(photo, markers, srcPixels, geometry, printedMarkerMm);
+    final measured = _measureSpacing(
+      photo,
+      markers,
+      srcPixels,
+      geometry,
+      printedMarkerMm,
+    );
     var scaleFromMarkers = false;
     if (measured == null) {
       if (board == null) {
@@ -145,13 +156,17 @@ class MoldScanPipeline {
           'impressão, ou informe a distância entre eles na configuração da escala.',
         );
       }
-      warnings.add('Não consegui conferir a escala pelos QR; usei a distância digitada.');
+      warnings.add(
+        'Não consegui conferir a escala pelos QR; usei a distância digitada.',
+      );
     } else if (board == null) {
       geometry = measured;
       scaleFromMarkers = true;
     } else {
-      final dx = board.spanXMm / measured.spanXMm - 1, dy = board.spanYMm / measured.spanYMm - 1;
-      if (dx.abs() > maxManualDisagreement || dy.abs() > maxManualDisagreement) {
+      final dx = board.spanXMm / measured.spanXMm - 1,
+          dy = board.spanYMm / measured.spanYMm - 1;
+      if (dx.abs() > maxManualDisagreement ||
+          dy.abs() > maxManualDisagreement) {
         warnings.add(
           'A distância digitada entre os marcadores (${_cm(board.spanXMm)} × ${_cm(board.spanYMm)} cm) não '
           'bate com o tamanho dos QR na foto, que indica ${_cm(measured.spanXMm)} × ${_cm(measured.spanYMm)} cm. '
@@ -165,7 +180,11 @@ class MoldScanPipeline {
     _checkResolution(srcPixels, geometry, warnings);
 
     await stage('Corrigindo a perspectiva...');
-    final pose = CameraPoseEstimator.estimate(pixelToMm: pixelToMm, width: photo.width, height: photo.height);
+    final pose = CameraPoseEstimator.estimate(
+      pixelToMm: pixelToMm,
+      width: photo.width,
+      height: photo.height,
+    );
     final rectified = ImageRectifier.rectify(
       source: photo,
       pixelToMm: pixelToMm,
@@ -187,7 +206,9 @@ class MoldScanPipeline {
         image: rectified,
         background: background,
         pixelsPerMm: pixelsPerMm,
-        excludedRegionsMm: [for (final c in BoardCorner.values) c.markerExclusionRectMm(geometry)],
+        excludedRegionsMm: [
+          for (final c in BoardCorner.values) c.markerExclusionRectMm(geometry),
+        ],
         ignoreBorderMm: ignoreBorderMm,
       );
     } on ContourExtractionException catch (e) {
@@ -196,7 +217,10 @@ class MoldScanPipeline {
       );
     }
 
-    final contour = PolylineSimplifier.simplify(extracted.contourMm, simplifyToleranceMm);
+    final contour = PolylineSimplifier.simplify(
+      extracted.contourMm,
+      simplifyToleranceMm,
+    );
     final xs = contour.map((p) => p.x), ys = contour.map((p) => p.y);
     final widthMm = xs.reduce(max) - xs.reduce(min);
     final heightMm = ys.reduce(max) - ys.reduce(min);
@@ -237,22 +261,41 @@ class MoldScanPipeline {
     BoardGeometry guess,
     double printedMarkerMm,
   ) {
-    final coarse = MarkerScale.measure(markers, _homography(srcPixels, guess), printedMarkerMm);
+    final coarse = MarkerScale.measure(
+      markers,
+      _homography(srcPixels, guess),
+      printedMarkerMm,
+    );
     if (coarse == null) return null;
-    var g = BoardGeometry.fromSpansMm(guess.spanXMm / coarse.$1, guess.spanYMm / coarse.$2);
+    var g = BoardGeometry.fromSpansMm(
+      guess.spanXMm / coarse.$1,
+      guess.spanYMm / coarse.$2,
+    );
     if (!g.isUsable) return null;
-    final fine = MarkerScale.refineWithEdges(photo, _homography(srcPixels, g), g, markers, printedMarkerMm);
+    final fine = MarkerScale.refineWithEdges(
+      photo,
+      _homography(srcPixels, g),
+      g,
+      markers,
+      printedMarkerMm,
+    );
     if (fine != null) {
-      final refined = BoardGeometry.fromSpansMm(g.spanXMm / fine.$1, g.spanYMm / fine.$2);
+      final refined = BoardGeometry.fromSpansMm(
+        g.spanXMm / fine.$1,
+        g.spanYMm / fine.$2,
+      );
       if (refined.isUsable) g = refined;
     }
     return g;
   }
 
-  static String _cm(double mm) => (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
+  static String _cm(double mm) =>
+      (mm / 10).toStringAsFixed(1).replaceAll('.', ',');
 
   static Homography _homography(List<Point2D> srcPixels, BoardGeometry board) =>
-      Homography.fromCorrespondences(srcPixels, [for (final c in _cornerOrder) c.knownPositionMm(board)]);
+      Homography.fromCorrespondences(srcPixels, [
+        for (final c in _cornerOrder) c.knownPositionMm(board),
+      ]);
 
   static Uint8List _buildPreview(img.Image rectified, List<Point2D> contour) {
     final scale = previewWidth / rectified.width;
@@ -295,8 +338,13 @@ class MoldScanPipeline {
     }
   }
 
-  static void _checkResolution(List<Point2D> p, BoardGeometry board, List<String> warnings) {
-    double dist(Point2D a, Point2D b) => sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
+  static void _checkResolution(
+    List<Point2D> p,
+    BoardGeometry board,
+    List<String> warnings,
+  ) {
+    double dist(Point2D a, Point2D b) =>
+        sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
     final pxPerMmX = (dist(p[0], p[1]) + dist(p[3], p[2])) / 2 / board.spanXMm;
     final pxPerMmY = (dist(p[0], p[3]) + dist(p[1], p[2])) / 2 / board.spanYMm;
     final pxPerMm = min(pxPerMmX, pxPerMmY);

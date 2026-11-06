@@ -40,14 +40,20 @@ class MoldBoardPdfBuilder {
             children: [
               pw.Text(
                 'MT Vidros - Marcador ${_cornerLabel(corner)}',
-                style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                  fontSize: 13,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
               pw.SizedBox(height: 3),
               pw.Text(
                 'Imprima em tamanho real (100%), nunca "ajustar a pagina". Recorte exatamente na '
                 'linha tracejada, sem deixar sobra de papel (a margem branca dentro da linha faz '
                 'parte do marcador - nao recorte dentro dela).',
-                style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                  fontSize: 8.5,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
               pw.SizedBox(height: 3),
               pw.Text(
@@ -70,7 +76,11 @@ class MoldBoardPdfBuilder {
                 alignment: pw.Alignment.center,
                 decoration: pw.BoxDecoration(
                   color: PdfColors.white,
-                  border: pw.Border.all(color: PdfColors.grey700, width: 0.6, style: pw.BorderStyle.dashed),
+                  border: pw.Border.all(
+                    color: PdfColors.grey700,
+                    width: 0.6,
+                    style: pw.BorderStyle.dashed,
+                  ),
                 ),
                 child: pw.SizedBox(
                   width: sizePt,
@@ -126,12 +136,18 @@ class MoldBoardPdfBuilder {
   }
 
   static String _horizontalEdge(BoardCorner corner) {
-    final fromLeft = corner == BoardCorner.topLeft || corner == BoardCorner.bottomLeft;
-    return fromLeft ? 'da borda esquerda do quadro' : 'da borda direita do quadro';
+    final fromLeft =
+        corner == BoardCorner.topLeft || corner == BoardCorner.bottomLeft;
+    return fromLeft
+        ? 'da borda esquerda do quadro'
+        : 'da borda direita do quadro';
   }
 
   static String _verticalEdge(BoardCorner corner) {
-    final fromTop = corner == BoardCorner.topLeft || corner == BoardCorner.topRight;
-    return fromTop ? 'da borda superior do quadro' : 'da borda inferior do quadro';
+    final fromTop =
+        corner == BoardCorner.topLeft || corner == BoardCorner.topRight;
+    return fromTop
+        ? 'da borda superior do quadro'
+        : 'da borda inferior do quadro';
   }
 }

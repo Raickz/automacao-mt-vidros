@@ -17,7 +17,9 @@ class _Outcome {
 
 Future<_Outcome> _runInIsolate((Uint8List, BoardGeometry) args) async {
   try {
-    return _Outcome(result: await MoldScanPipeline.run(args.$1, board: args.$2));
+    return _Outcome(
+      result: await MoldScanPipeline.run(args.$1, board: args.$2),
+    );
   } on MoldScanException catch (e) {
     return _Outcome(error: e.message);
   }

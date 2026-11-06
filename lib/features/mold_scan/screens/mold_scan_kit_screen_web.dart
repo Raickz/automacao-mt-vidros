@@ -13,6 +13,8 @@ import '../theme/mold_scan_colors.dart';
 import '../theme/mold_scan_theme.dart';
 import '../widgets/mold_ui.dart';
 import '../widgets/project_form.dart';
+import '../services/mold_outline.dart';
+import 'mold_library_page.dart';
 
 class MoldScanKitScreen extends StatefulWidget {
   const MoldScanKitScreen({super.key});
@@ -34,6 +36,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   CameraPose? _pose;
   BoardGeometry? _resultBoard;
   bool _scaleFromMarkers = false;
+  int _tab = 0; // 0 = digitalizar, 1 = biblioteca
 
   final _project = ProjectData();
   // Optional: left blank, the marker spacing is measured from the QR codes.
@@ -51,37 +54,48 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   }
 
   bool get _manualSpans =>
-      _boardWidthController.text.trim().isNotEmpty || _boardHeightController.text.trim().isNotEmpty;
+      _boardWidthController.text.trim().isNotEmpty ||
+      _boardHeightController.text.trim().isNotEmpty;
 
-  BoardGeometry? get _typedBoard =>
-      BoardGeometry.fromMarkerSpans(_boardWidthController.text, _boardHeightController.text);
+  BoardGeometry? get _typedBoard => BoardGeometry.fromMarkerSpans(
+    _boardWidthController.text,
+    _boardHeightController.text,
+  );
 
   double? get _printedMm {
-    final cm = double.tryParse(_printedController.text.trim().replaceAll(',', '.'));
+    final cm = double.tryParse(
+      _printedController.text.trim().replaceAll(',', '.'),
+    );
     return cm == null ? null : cm * 10;
   }
 
   double get _boardAspect {
     final board = _resultBoard ?? (_manualSpans ? _typedBoard : null);
-    return board == null ? 250 / 150 : (board.widthMm / board.heightMm).clamp(0.6, 2.4);
+    return board == null
+        ? 250 / 150
+        : (board.widthMm / board.heightMm).clamp(0.6, 2.4);
   }
 
   /// The scale inputs, or null (with the error shown) when they are invalid.
   /// No typed spacing means "measure it from the QR codes".
   ({BoardGeometry? board, double printedMm})? _readScale() {
     void fail(String message) => setState(() {
-          _error = message;
-          _settingsOpen = true;
-        });
+      _error = message;
+      _settingsOpen = true;
+    });
     final printed = _printedMm;
     if (printed == null || printed < 120 || printed > 240) {
-      fail('Informe o lado do quadrado preto impresso, em cm (impresso a 100% dá 18,0).');
+      fail(
+        'Informe o lado do quadrado preto impresso, em cm (impresso a 100% dá 18,0).',
+      );
       return null;
     }
     if (!_manualSpans) return (board: null, printedMm: printed);
     final board = _typedBoard;
     if (board == null) {
-      fail('${BoardGeometry.spanHint} Ou deixe os dois campos em branco para medir pelos QR.');
+      fail(
+        '${BoardGeometry.spanHint} Ou deixe os dois campos em branco para medir pelos QR.',
+      );
       return null;
     }
     return (board: board, printedMm: printed);
@@ -189,9 +203,9 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     final scale = board == null
         ? ''
         : _scaleFromMarkers
-            ? 'Distância entre os marcadores, medida pelos QR: ${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. '
-            : 'Distância entre os marcadores digitada e conferida pelos QR: '
-                '${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. ';
+        ? 'Distância entre os marcadores, medida pelos QR: ${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. '
+        : 'Distância entre os marcadores digitada e conferida pelos QR: '
+              '${cm(board.spanXMm)} × ${cm(board.spanYMm)} cm. ';
     return '$scale${_thicknessNote(raw, shown)}';
   }
 
@@ -230,34 +244,59 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                   padding: EdgeInsets.fromLTRB(pad, 18, pad, 40),
                   children: [
                     const MoldTopBar(),
-                    SizedBox(height: wide ? 40 : 28),
-                    _header(wide),
-                    const SizedBox(height: 22),
-                    StageRail(
-                      current: _contour != null
-                          ? 2
-                          : (_selectedBytes != null ? 1 : 0),
+                    const SizedBox(height: 18),
+                    SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 0,
+                          icon: Icon(Icons.photo_camera_outlined),
+                          label: Text('Digitalizar'),
+                        ),
+                        ButtonSegment(
+                          value: 1,
+                          icon: Icon(Icons.grid_view_rounded),
+                          label: Text('Biblioteca'),
+                        ),
+                      ],
+                      selected: {_tab},
+                      onSelectionChanged: (s) => setState(() => _tab = s.first),
                     ),
-                    const SizedBox(height: 22),
-                    if (wide)
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(flex: 7, child: _mesa()),
-                          const SizedBox(width: 36),
-                          Expanded(flex: 5, child: _sidebar()),
-                        ],
+                    SizedBox(height: wide ? 32 : 22),
+                    if (_tab == 1)
+                      MoldLibraryPage(
+                        scanned: _contour == null
+                            ? null
+                            : MoldOutline(_shown(_contour!)),
                       )
                     else ...[
-                      _mesa(),
+                      _header(wide),
                       const SizedBox(height: 22),
-                      _sidebar(),
-                    ],
-                    if (_contour == null) ...[
-                      SizedBox(height: wide ? 56 : 40),
-                      Text('Como funciona', style: MoldScanType.headline(30)),
-                      const SizedBox(height: 16),
-                      const HowItWorks(),
+                      StageRail(
+                        current: _contour != null
+                            ? 2
+                            : (_selectedBytes != null ? 1 : 0),
+                      ),
+                      const SizedBox(height: 22),
+                      if (wide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 7, child: _mesa()),
+                            const SizedBox(width: 36),
+                            Expanded(flex: 5, child: _sidebar()),
+                          ],
+                        )
+                      else ...[
+                        _mesa(),
+                        const SizedBox(height: 22),
+                        _sidebar(),
+                      ],
+                      if (_contour == null) ...[
+                        SizedBox(height: wide ? 56 : 40),
+                        Text('Como funciona', style: MoldScanType.headline(30)),
+                        const SizedBox(height: 16),
+                        const HowItWorks(),
+                      ],
                     ],
                   ],
                 );
@@ -548,20 +587,31 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                           width: 240,
                           child: TextField(
                             controller: _printedController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(labelText: 'Quadrado preto impresso (cm)'),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Quadrado preto impresso (cm)',
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
                           'O app mede a escala pelos próprios QR, que são réguas de tamanho conhecido. Meça '
                           'um quadrado preto impresso com a régua: impresso a 100% dá 18,0 cm.',
-                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
+                          style: TextStyle(
+                            color: MoldScanColors.textSecondary,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
                         ),
                         const SizedBox(height: 18),
                         const Text(
                           'Distância entre os marcadores (opcional)',
-                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Row(
@@ -569,7 +619,10 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             Expanded(
                               child: TextField(
                                 controller: _boardWidthController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 decoration: const InputDecoration(
                                   labelText: 'Na horizontal (cm)',
                                   hintText: 'automático',
@@ -581,7 +634,10 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                             Expanded(
                               child: TextField(
                                 controller: _boardHeightController,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
                                 decoration: const InputDecoration(
                                   labelText: 'Na vertical (cm)',
                                   hintText: 'automático',
@@ -596,7 +652,11 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                           'Deixe em branco. Se preencher, meça do canto esquerdo de um quadrado preto até o '
                           'canto esquerdo do outro (os dois de cima para a horizontal, os dois da esquerda '
                           'para a vertical); o app confere com os QR e avisa se não bater.',
-                          style: TextStyle(color: MoldScanColors.textSecondary, fontSize: 14, height: 1.4),
+                          style: TextStyle(
+                            color: MoldScanColors.textSecondary,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         OutlinedButton.icon(

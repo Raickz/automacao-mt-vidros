@@ -29,7 +29,10 @@ class PolylineSimplifier {
     }
 
     if (maxDistance > tolerance) {
-      final left = _douglasPeucker(points.sublist(0, splitIndex + 1), tolerance);
+      final left = _douglasPeucker(
+        points.sublist(0, splitIndex + 1),
+        tolerance,
+      );
       final right = _douglasPeucker(points.sublist(splitIndex), tolerance);
       return [...left.sublist(0, left.length - 1), ...right];
     }

@@ -13,7 +13,14 @@ export 'contour_types.dart';
 
 class ContourExtractor {
   static const _clockwiseOffsets = [
-    (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1),
+    (1, 0),
+    (1, 1),
+    (0, 1),
+    (-1, 1),
+    (-1, 0),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
   ];
 
   /// Extracts the outer boundary of the largest foreground object in
@@ -30,7 +37,11 @@ class ContourExtractor {
   }) {
     return extract(
       image: image,
-      background: BackgroundModel.constant(backgroundR, backgroundG, backgroundB),
+      background: BackgroundModel.constant(
+        backgroundR,
+        backgroundG,
+        backgroundB,
+      ),
       pixelsPerMm: pixelsPerMm,
       excludedRegionsMm: excludedRegionsMm,
       ignoreBorderMm: ignoreBorderMm,
@@ -94,7 +105,14 @@ class ContourExtractor {
     final closeR = (closingRadiusMm * pixelsPerMm).round();
     if (closeR > 0) mask = closeGaps(mask, w, h, closeR);
     final sliverR = (sliverRadiusMm * pixelsPerMm).round();
-    if (sliverR > 0) dropSlivers(mask, w, h, sliverR, edgeZone: band > 0 ? band + sliverR + 2 : 0);
+    if (sliverR > 0)
+      dropSlivers(
+        mask,
+        w,
+        h,
+        sliverR,
+        edgeZone: band > 0 ? band + sliverR + 2 : 0,
+      );
 
     final largest = labelLargest(mask, w, h);
     if (largest.bestCount < minAreaPx) {
@@ -105,7 +123,8 @@ class ContourExtractor {
 
     final labels = largest.labels, bestLabel = largest.bestLabel;
     final boundary = traceBoundary(
-      (x, y) => x >= 0 && y >= 0 && x < w && y < h && labels[y * w + x] == bestLabel,
+      (x, y) =>
+          x >= 0 && y >= 0 && x < w && y < h && labels[y * w + x] == bestLabel,
       w,
       h,
     );
@@ -171,7 +190,10 @@ class ContourExtractor {
         final cr = r - k * bgR;
         final cg = g - k * bgG;
         final cb = b - k * bgB;
-        final t2 = max(chromaThresholdRatio * chromaThresholdRatio * bb, minChroma2);
+        final t2 = max(
+          chromaThresholdRatio * chromaThresholdRatio * bb,
+          minChroma2,
+        );
         if (cr * cr + cg * cg + cb * cb > t2) mask[i] = 1;
       }
     }
@@ -184,7 +206,11 @@ class ContourExtractor {
   /// millimeter or two. Re-place the edge, in place, at a fixed share of the
   /// piece's own contrast with the board (its median distance from the
   /// background), which is where a blurred step edge really is.
-  static void _placeEdgeByContrast(Uint8List mask, Uint16List dist, double ratio) {
+  static void _placeEdgeByContrast(
+    Uint8List mask,
+    Uint16List dist,
+    double ratio,
+  ) {
     final hist = Int32List(1024);
     var counted = 0;
     for (var i = 0; i < mask.length; i++) {
@@ -213,10 +239,16 @@ class ContourExtractor {
   /// half a pixel *inside* the true edge — measuring through them would
   /// shrink every dimension by a full pixel. Push each point half a pixel
   /// outward along the local normal to compensate.
-  static List<Point2D> boundaryToMillimeters(List<(int, int)> boundary, double pixelsPerMm) {
+  static List<Point2D> boundaryToMillimeters(
+    List<(int, int)> boundary,
+    double pixelsPerMm,
+  ) {
     final n = boundary.length;
     if (n < 8) {
-      return [for (final p in boundary) Point2D((p.$1 + 0.5) / pixelsPerMm, (p.$2 + 0.5) / pixelsPerMm)];
+      return [
+        for (final p in boundary)
+          Point2D((p.$1 + 0.5) / pixelsPerMm, (p.$2 + 0.5) / pixelsPerMm),
+      ];
     }
 
     var area2 = 0.0;
@@ -240,7 +272,12 @@ class ContourExtractor {
         ny = -sign * tx / len;
       }
       final p = boundary[i];
-      out.add(Point2D((p.$1 + 0.5 + 0.5 * nx) / pixelsPerMm, (p.$2 + 0.5 + 0.5 * ny) / pixelsPerMm));
+      out.add(
+        Point2D(
+          (p.$1 + 0.5 + 0.5 * nx) / pixelsPerMm,
+          (p.$2 + 0.5 + 0.5 * ny) / pixelsPerMm,
+        ),
+      );
     }
     return out;
   }
@@ -307,7 +344,8 @@ class ContourExtractor {
 
   static int _offsetIndex(int dx, int dy) {
     for (var i = 0; i < _clockwiseOffsets.length; i++) {
-      if (_clockwiseOffsets[i].$1 == dx && _clockwiseOffsets[i].$2 == dy) return i;
+      if (_clockwiseOffsets[i].$1 == dx && _clockwiseOffsets[i].$2 == dy)
+        return i;
     }
     throw StateError('Offset inválido: ($dx, $dy)');
   }
