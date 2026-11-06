@@ -70,8 +70,9 @@ void main() {
           final xs = <double>[];
           for (var i = 0; i < pts.length; i++) {
             final a = pts[i], c = pts[(i + 1) % pts.length];
-            if ((a.y > y) != (c.y > y))
+            if ((a.y > y) != (c.y > y)) {
               xs.add(a.x + (y - a.y) * (c.x - a.x) / (c.y - a.y));
+            }
           }
           if (xs.length >= 2) {
             xs.sort();
