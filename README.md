@@ -13,12 +13,17 @@ Android (câmera ao vivo) continua no repositório, mas não é mais mantido; o 
 1. **Marcadores.** Gere o PDF dos 4 marcadores no app ("Baixar marcadores em PDF"). Imprima em A4, a
    **100%**, recorte na **linha tracejada** e cole um em cada canto do quadro, com a **borda do papel a
    50 mm das bordas** do quadro. Cada folha diz de que canto é.
-2. **Escala.** O app mede a escala pelos próprios QR (cada quadrado preto é uma régua de 18 cm), então
-   não precisa medir nada com trena. Confira só se a impressão saiu a 100%: meça um quadrado preto com a
-   régua; se não der 18,0 cm, digite o valor medido em "Escala". A distância entre os marcadores é opcional:
-   se for digitada, o app confere com os QR e avisa quando não bate (diferença acima de 2,5%).
-   Se o molde fica em pé apoiado no chão, cole os QR de baixo com o papel encostado no chão.
-3. **Foto.** Molde sobre o quadro, 2 a 3 m de distância, de frente, com os 4 marcadores inteiros na foto.
+2. **Escala.** Com os QR fixos (parede, chão ou quadro), meça uma vez com a trena a distância entre os
+   marcadores — do canto esquerdo de um quadrado preto ao canto esquerdo do outro: os dois de cima para a
+   horizontal, os dois da esquerda para a vertical — e digite em "Escala". Fica salvo no aparelho. Sem ela o
+   app mede a escala pelos próprios QR (cada quadrado preto é uma régua de 18 cm), mas isso varia cerca de 2%
+   de uma foto para outra (papel ondulado, foto a 2 m). A distância digitada vale, a não ser que discorde dos
+   QR em mais de 5% (aí foi medida errado e o app usa os QR e avisa). Confira também se a impressão saiu a
+   100%: o quadrado preto deve medir 18,0 cm.
+3. **Foto.** O molde precisa estar **inteiro no mesmo plano dos QR**: deitado no chão com os 4 QR colados no
+   chão em volta, ou encostado inteiro num quadro que tem os QR. Molde apoiado na parede com o pé afastado (ou
+   sobre calço) não está no plano: a parte de baixo fica mais perto da câmera e sai maior (num teste real, 45 cm
+   no topo viraram 48 cm embaixo). O app avisa quando o contorno alarga para um lado. Molde sobre o quadro, 2 a 3 m de distância, de frente, com os 4 marcadores inteiros na foto.
    Use a foto original da câmera, não a enviada por WhatsApp. O molde deve ficar a pelo menos 5 cm das
    bordas do quadro e fora dos 4 cantos.
 4. **Resultado.** Confira a linha rosa na prévia (ela deve acompanhar a borda externa do molde) e as

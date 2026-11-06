@@ -76,4 +76,27 @@ void main() {
   test('labelLargest: sem nada na máscara, bestCount é 0', () {
     expect(labelLargest(Uint8List(w * h), w, h).bestCount, 0);
   });
+
+  test('fillEnclosed: fecha buraco e mordida cercados, mantém reentrância aberta', () {
+    const W = 60, H = 60;
+    final m = Uint8List(W * H);
+    void rect(int x0, int x1, int y0, int y1, int v) {
+      for (var y = y0; y <= y1; y++) {
+        for (var x = x0; x <= x1; x++) {
+          m[y * W + x] = v;
+        }
+      }
+    }
+
+    rect(5, 54, 5, 54, 1); // peça
+    rect(20, 25, 20, 25, 0); // mancha interna (buraco)
+    rect(5, 30, 40, 42, 0); // mordida vindo da borda esquerda, cercada em cima/baixo/direita só
+    rect(25, 34, 5, 15, 0); // reentrância aberta para cima (como o vão de um coração)
+    final out = fillEnclosed(m, W, H, 20);
+    expect(out[22 * W + 22], 1, reason: 'buraco interno preenchido');
+    expect(out[10 * W + 30], 0, reason: 'reentrância aberta continua aberta');
+    expect(out[41 * W + 6], 0, reason: 'mordida aberta para fora não é inventada');
+    expect(out[41 * W + 20], 0);
+    expect(out[2 * W + 2], 0, reason: 'fora da peça continua fora');
+  });
 }

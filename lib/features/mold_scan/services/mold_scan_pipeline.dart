@@ -69,7 +69,15 @@ class MoldScanPipeline {
   static const ignoreBorderMm = 50.0;
   // Above this disagreement, a typed marker spacing is overruled by the one
   // measured from the QR codes.
-  static const maxManualDisagreement = 0.025;
+  /// A spacing measured with a tape over ~2 m is more precise than one
+  /// extrapolated from 18 cm QR squares (which varies ~2% between photos,
+  /// with paper curl and blur), so a typed spacing wins unless it is off by
+  /// more than this, which means it was measured wrong.
+  static const maxManualDisagreement = 0.05;
+
+  /// Width change between the upper and lower part of the outline above
+  /// which a lean is suspected (see [_taperWarning]).
+  static const maxTaper = 0.025;
   static const previewWidth = 1000;
   static const _cornerOrder = [
     BoardCorner.topLeft,
@@ -200,6 +208,11 @@ class MoldScanPipeline {
           );
           geometry = measured;
           scaleFromMarkers = true;
+        } else if (dx.abs() > 0.008 || dy.abs() > 0.008) {
+          warnings.add(
+            'Usei a distância digitada (${_cm(board.spanXMm)} × ${_cm(board.spanYMm)} cm). Pelos QR daria '
+            '${_cm(measured.spanXMm)} × ${_cm(measured.spanYMm)} cm; a trena é mais precisa.',
+          );
         }
       }
     }
@@ -265,6 +278,9 @@ class MoldScanPipeline {
       );
     }
 
+    final taper = _taperWarning(contour);
+    if (taper != null) warnings.add(taper);
+
     await stage('Montando a prévia...');
     final preview = _buildPreview(rectified, contour);
 
@@ -276,6 +292,40 @@ class MoldScanPipeline {
       cameraPose: pose,
       scaleFromMarkers: scaleFromMarkers,
     );
+  }
+
+  /// A mold leaning on the wall with its foot away from it (or lying on a
+  /// shim) is not in the markers' plane: the part closer to the camera comes
+  /// out bigger. On a straight-sided mold that shows as a width that grows
+  /// toward one end. Compares the widths at 20% and 80% of the height.
+  static String? _taperWarning(List<Point2D> contour) {
+    final ys = contour.map((p) => p.y);
+    final y0 = ys.reduce(min), y1 = ys.reduce(max);
+    double? widthAt(double f) {
+      final y = y0 + (y1 - y0) * f + 0.37; // off the 1 mm grid of the vertices
+      final xs = <double>[];
+      for (var i = 0; i < contour.length; i++) {
+        final a = contour[i], b = contour[(i + 1) % contour.length];
+        if ((a.y > y) != (b.y > y)) {
+          xs.add(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
+        }
+      }
+      if (xs.length < 2) return null;
+      return xs.reduce(max) - xs.reduce(min);
+    }
+
+    final top = widthAt(0.2), bottom = widthAt(0.8);
+    if (top == null || bottom == null || top < 50 || bottom < 50) return null;
+    final ratio = bottom / top;
+    // Beyond ~15% it is the mold's own shape, not a lean.
+    if ((ratio - 1).abs() <= maxTaper || (ratio - 1).abs() > 0.15) return null;
+    final pct = ((ratio - 1).abs() * 100)
+        .toStringAsFixed(1)
+        .replaceAll('.', ',');
+    final where = ratio > 1 ? 'de baixo' : 'de cima';
+    return 'A parte $where do contorno saiu $pct% mais larga. Se o molde tem os lados paralelos, ele não está '
+        'encostado inteiro no plano dos QR (pé afastado da parede, calço, molde inclinado): a parte mais perto da '
+        'câmera aparece maior. Deite o molde no chão com os 4 QR no chão em volta, ou apoie molde e QR no mesmo quadro.';
   }
 
   /// The marker spacing measured from the QR codes themselves: a coarse step

@@ -21,6 +21,7 @@ class MoldStore {
   static const _key = 'mt_saved_molds_v1';
   static const _favKey = 'mt_fav_molds_v1';
   static const _priceKey = 'mt_prices_v1';
+  static const _spanKey = 'mt_marker_spans_v1';
 
   static List<SavedMold> load() {
     try {
@@ -118,6 +119,25 @@ class MoldStore {
         _priceKey,
         jsonEncode({'m2': perM2, 'm': perMeter}),
       );
+    } catch (_) {}
+  }
+
+  /// Marker spacing typed in "Escala" (cm, as typed): markers glued on a
+  /// wall stay put, so it is measured once and remembered.
+  static (String, String) markerSpans() {
+    try {
+      final raw = web.window.localStorage.getItem(_spanKey);
+      if (raw == null) return ('', '');
+      final m = jsonDecode(raw) as Map;
+      return ((m['x'] ?? '') as String, (m['y'] ?? '') as String);
+    } catch (_) {
+      return ('', '');
+    }
+  }
+
+  static void setMarkerSpans(String x, String y) {
+    try {
+      web.window.localStorage.setItem(_spanKey, jsonEncode({'x': x, 'y': y}));
     } catch (_) {}
   }
 }

@@ -15,6 +15,7 @@ import '../widgets/mold_ui.dart';
 import '../widgets/project_form.dart';
 import '../services/mold_outline.dart';
 import 'mold_library_page.dart';
+import '../services/mold_store.dart';
 import '../widgets/corner_picker.dart';
 import '../widgets/mold_editor.dart';
 
@@ -46,8 +47,12 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   final _project = ProjectData();
   final _scroll = ScrollController();
   // Optional: left blank, the marker spacing is measured from the QR codes.
-  final _boardWidthController = TextEditingController();
-  final _boardHeightController = TextEditingController();
+  late final _boardWidthController = TextEditingController(
+    text: MoldStore.markerSpans().$1,
+  );
+  late final _boardHeightController = TextEditingController(
+    text: MoldStore.markerSpans().$2,
+  );
   final _printedController = TextEditingController(text: '18,0');
 
   @override
@@ -212,6 +217,14 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _processing = false;
       });
     }
+  }
+
+  void _spansChanged() {
+    MoldStore.setMarkerSpans(
+      _boardWidthController.text.trim(),
+      _boardHeightController.text.trim(),
+    );
+    setState(() {});
   }
 
   /// Switches what the page shows and goes back to its top.
@@ -473,6 +486,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
           ),
         ] else
           const Text(
+            'O molde precisa estar inteiro no mesmo plano dos QR: deitado no chão com os QR no chão, ou '
+            'encostado inteiro no quadro. Molde inclinado ou com o pé afastado da parede sai maior embaixo. '
             'Mostre os 4 marcadores inteiros e nítidos, de 2 a 3 m, de frente para o quadro. '
             'Use a foto original da câmera, não a enviada por WhatsApp.',
             style: TextStyle(
@@ -719,7 +734,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                         ),
                         const SizedBox(height: 18),
                         const Text(
-                          'Distância entre os marcadores (opcional)',
+                          'Distância entre os marcadores (recomendado)',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
@@ -739,7 +754,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                                   labelText: 'Na horizontal (cm)',
                                   hintText: 'automático',
                                 ),
-                                onChanged: (_) => setState(() {}),
+                                onChanged: (_) => _spansChanged(),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -754,16 +769,18 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                                   labelText: 'Na vertical (cm)',
                                   hintText: 'automático',
                                 ),
-                                onChanged: (_) => setState(() {}),
+                                onChanged: (_) => _spansChanged(),
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Deixe em branco. Se preencher, meça do canto esquerdo de um quadrado preto até o '
-                          'canto esquerdo do outro (os dois de cima para a horizontal, os dois da esquerda '
-                          'para a vertical); o app confere com os QR e avisa se não bater.',
+                          'Com os QR fixos, meça uma vez com a trena e digite: fica salvo neste aparelho e deixa a '
+                          'medida mais precisa (pelos QR a escala varia cerca de 2% de uma foto para outra). Meça do '
+                          'canto esquerdo de um quadrado preto até o canto esquerdo do outro: os dois de cima para a '
+                          'horizontal, os dois da esquerda para a vertical. Em branco, a escala sai dos QR. Se mudar '
+                          'os QR de lugar, meça de novo.',
                           style: TextStyle(
                             color: MoldScanColors.textSecondary,
                             fontSize: 14,

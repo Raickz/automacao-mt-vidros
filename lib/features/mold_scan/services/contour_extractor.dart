@@ -12,6 +12,9 @@ import 'mask_ops.dart';
 export 'contour_types.dart';
 
 class ContourExtractor {
+  /// Test hook: receives the cleaned mask right before the outline is traced.
+  static void Function(Uint8List mask, int w, int h)? debugMask;
+
   static const _clockwiseOffsets = [
     (1, 0),
     (1, 1),
@@ -66,6 +69,8 @@ class ContourExtractor {
     double maxBrightnessRatio = MoldBoardSpec.brightnessMaxRatio,
     double edgeContrastRatio = MoldBoardSpec.edgeContrastRatio,
     double closingRadiusMm = 8,
+    double edgeBandMm = 4,
+    double fillGapMm = 150,
     double sliverRadiusMm = 6,
     List<MmRect> excludedRegionsMm = const [],
     double ignoreBorderMm = 0,
@@ -100,7 +105,14 @@ class ContourExtractor {
       );
     }
 
-    _placeEdgeByContrast(mask, dist, edgeContrastRatio);
+    _placeEdgeByContrast(
+      mask,
+      dist,
+      edgeContrastRatio,
+      w,
+      h,
+      (edgeBandMm * pixelsPerMm).ceil(),
+    );
 
     final closeR = (closingRadiusMm * pixelsPerMm).round();
     if (closeR > 0) mask = closeGaps(mask, w, h, closeR);
@@ -115,6 +127,10 @@ class ContourExtractor {
       );
     }
 
+    final fillGap = (fillGapMm * pixelsPerMm).round();
+    if (fillGap > 0) mask = fillEnclosed(mask, w, h, fillGap);
+
+    debugMask?.call(mask, w, h);
     final largest = labelLargest(mask, w, h);
     if (largest.bestCount < minAreaPx) {
       throw const ContourExtractionException(
@@ -207,11 +223,22 @@ class ContourExtractor {
   /// millimeter or two. Re-place the edge, in place, at a fixed share of the
   /// piece's own contrast with the board (its median distance from the
   /// background), which is where a blurred step edge really is.
+  ///
+  /// Only pixels within [band] px of the background are touched: inside the
+  /// piece, a stain close to the board's color (dirty wood on a gray wall) is
+  /// still piece, and dropping it would bite holes and notches into the
+  /// outline.
   static void _placeEdgeByContrast(
     Uint8List mask,
     Uint16List dist,
     double ratio,
+    int w,
+    int h,
+    int band,
   ) {
+    final interior = band > 0
+        ? boxMorph(mask, w, h, band, erode: true)
+        : Uint8List(mask.length);
     final hist = Int32List(1024);
     var counted = 0;
     for (var i = 0; i < mask.length; i++) {
@@ -232,7 +259,7 @@ class ContourExtractor {
     }
     final minDist = max(ratio * median, 22.0);
     for (var i = 0; i < mask.length; i++) {
-      if (mask[i] != 0 && dist[i] < minDist) mask[i] = 0;
+      if (mask[i] != 0 && interior[i] == 0 && dist[i] < minDist) mask[i] = 0;
     }
   }
 

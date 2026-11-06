@@ -121,3 +121,53 @@ void dropSlivers(Uint8List mask, int w, int h, int r, {int edgeZone = 0}) {
   }
   return (labels: labels, bestLabel: bestLabel, bestCount: bestCount);
 }
+
+/// Fills background pixels that have foreground within [maxGap] px in all 4
+/// directions (left, right, up and down). Stains and streaks inside a piece
+/// that read as "board" leave holes and bites that this closes, while a real
+/// concavity of the outline (the notch of a heart, the inside of an L or a
+/// C) is open to at least one side and stays as it is.
+Uint8List fillEnclosed(Uint8List mask, int w, int h, int maxGap) {
+  final out = Uint8List.fromList(mask);
+  final big = maxGap + 1;
+  final left = Int32List(w * h), right = Int32List(w * h);
+  final up = Int32List(w * h), down = Int32List(w * h);
+  for (var y = 0; y < h; y++) {
+    var d = big;
+    for (var x = 0; x < w; x++) {
+      final i = y * w + x;
+      d = mask[i] != 0 ? 0 : (d >= big ? big : d + 1);
+      left[i] = d;
+    }
+    d = big;
+    for (var x = w - 1; x >= 0; x--) {
+      final i = y * w + x;
+      d = mask[i] != 0 ? 0 : (d >= big ? big : d + 1);
+      right[i] = d;
+    }
+  }
+  for (var x = 0; x < w; x++) {
+    var d = big;
+    for (var y = 0; y < h; y++) {
+      final i = y * w + x;
+      d = mask[i] != 0 ? 0 : (d >= big ? big : d + 1);
+      up[i] = d;
+    }
+    d = big;
+    for (var y = h - 1; y >= 0; y--) {
+      final i = y * w + x;
+      d = mask[i] != 0 ? 0 : (d >= big ? big : d + 1);
+      down[i] = d;
+    }
+  }
+  for (var i = 0; i < out.length; i++) {
+    if (out[i] == 0 &&
+        left[i] <= maxGap &&
+        right[i] <= maxGap &&
+        up[i] <= maxGap &&
+        down[i] <= maxGap) {
+      out[i] = 1;
+    }
+  }
+  return out;
+}

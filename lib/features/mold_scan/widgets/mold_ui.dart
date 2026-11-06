@@ -307,11 +307,11 @@ class HowItWorks extends StatelessWidget {
   static const _steps = [
     (
       'Preparar o quadro',
-      'Quadro azul fixo com 4 marcadores QR nos cantos. Feito uma única vez.',
+      '4 marcadores QR nos cantos do quadro (ou do chão). Meça com a trena a distância entre eles e digite em "Escala".',
     ),
     (
       'Fotografar',
-      'Molde sobre o quadro, de 2 a 3 m, com os 4 marcadores na foto.',
+      'Molde inteiro no plano dos QR (deitado no chão ou encostado no quadro), de 2 a 3 m, com os 4 QR na foto.',
     ),
     (
       'Medir',
