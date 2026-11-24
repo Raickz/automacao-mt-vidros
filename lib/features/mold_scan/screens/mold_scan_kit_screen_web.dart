@@ -16,6 +16,7 @@ import '../widgets/project_form.dart';
 import '../services/mold_outline.dart';
 import 'mold_library_page.dart';
 import '../services/mold_store.dart';
+import '../services/number_input.dart';
 import '../widgets/corner_picker.dart';
 import '../widgets/mold_editor.dart';
 
@@ -76,9 +77,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   );
 
   double? get _printedMm {
-    final cm = double.tryParse(
-      _printedController.text.trim().replaceAll(',', '.'),
-    );
+    final cm = parseDecimal(_printedController.text);
     return cm == null ? null : cm * 10;
   }
 

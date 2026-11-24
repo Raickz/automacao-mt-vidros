@@ -28,6 +28,11 @@ class DxfWriter {
         'Contorno precisa de pelo menos 3 pontos, recebeu ${points.length}',
       );
     }
+    // "NaN" or "Infinity" in a coordinate breaks the DXF for the CAM (or,
+    // worse, is read as 0): refuse instead of writing a broken file.
+    if (points.any((p) => !p.x.isFinite || !p.y.isFinite)) {
+      throw ArgumentError('Contorno com coordenada inválida (NaN/infinito).');
+    }
 
     final minX = points.map((p) => p.x).reduce(min);
     final maxY = points.map((p) => p.y).reduce(max);
@@ -78,16 +83,27 @@ class DxfWriter {
     String material = '',
     double? thicknessMm,
   }) {
-    String clean(String s) =>
-        _ascii(s.trim())
-            .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
-            .replaceAll(RegExp(r'^_+|_+$'), '');
-    final base = clean(name);
-    final mat = clean(material).toLowerCase();
-    final thickness = (thicknessMm != null && thicknessMm > 0)
+    final base = safeFileBase(name);
+    final mat = safeFileBase(material, maxLength: 30).toLowerCase();
+    final thickness =
+        (thicknessMm != null && thicknessMm.isFinite && thicknessMm > 0)
         ? '${thicknessMm == thicknessMm.roundToDouble() ? thicknessMm.round() : thicknessMm}mm'
         : '';
     return '${[base.isEmpty ? 'molde' : base, mat, thickness].where((p) => p.isNotEmpty).join('_')}.dxf';
+  }
+
+  /// [s] reduced to a safe file-name piece: accents folded ("Área" ->
+  /// "Area"), anything but letters, digits, '-' and '_' turned into '_' (so
+  /// no '/', '..', ':' or control characters reach the file name), and at
+  /// most [maxLength] characters. Empty when nothing usable is left.
+  static String safeFileBase(String s, {int maxLength = 60}) {
+    var out = _ascii(s.trim())
+        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
+    if (out.length > maxLength) {
+      out = out.substring(0, maxLength).replaceAll(RegExp(r'_+$'), '');
+    }
+    return out;
   }
 
   static const _accented = 'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ';

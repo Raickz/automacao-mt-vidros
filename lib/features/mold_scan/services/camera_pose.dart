@@ -106,6 +106,7 @@ class CameraPoseEstimator {
   ) {
     if (pose == null ||
         thicknessMm == null ||
+        !thicknessMm.isFinite ||
         thicknessMm <= 0 ||
         thicknessMm >= pose.heightMm / 2) {
       return contour;

@@ -116,4 +116,52 @@ void main() {
     final tooFew = [const Point2D(0, 0), const Point2D(10, 10)];
     expect(() => DxfWriter.write(tooFew), throwsArgumentError);
   });
+
+  test('rejeita coordenada NaN ou infinita em vez de gravar DXF quebrado', () {
+    expect(
+      () => DxfWriter.write([
+        const Point2D(0, 0),
+        const Point2D(double.nan, 0),
+        const Point2D(0, 10),
+      ]),
+      throwsArgumentError,
+    );
+    expect(
+      () => DxfWriter.write([
+        const Point2D(0, 0),
+        const Point2D(double.infinity, 0),
+        const Point2D(0, 10),
+      ]),
+      throwsArgumentError,
+    );
+  });
+
+  test('comentário hostil não quebra o formato DXF', () {
+    final dxf = DxfWriter.write(
+      [const Point2D(0, 0), const Point2D(10, 0), const Point2D(0, 10)],
+      comments: ['Projeto: x\r\n0\nEOF\u0000\u001b[31m'],
+    );
+    final lines = dxf.split('\n');
+    // Every 999 value is followed by a group code; EOF only at the very end.
+    expect(lines.where((l) => l.trim() == 'EOF').length, 1);
+    expect(
+      dxf.codeUnits.every((c) => c == 0x0A || (c >= 32 && c < 127)),
+      isTrue,
+    );
+  });
+
+  test('nome de arquivo sem caminho, sem controle e com tamanho limitado', () {
+    final name = DxfWriter.fileName(
+      name: '../../etc/passwd\u0000 Área ${'x' * 500}',
+      material: 'C:\\Windows\\vidro',
+    );
+    expect(name, isNot(contains('/')));
+    expect(name, isNot(contains('\\')));
+    expect(name, isNot(contains('..')));
+    expect(name, isNot(contains(':')));
+    expect(name.length, lessThanOrEqualTo(60 + 1 + 30 + 4));
+    expect(name, startsWith('etc_passwd_Area_x'));
+    expect(DxfWriter.safeFileBase('Área de serviço'), 'Area_de_servico');
+    expect(DxfWriter.safeFileBase('...'), '');
+  });
 }
