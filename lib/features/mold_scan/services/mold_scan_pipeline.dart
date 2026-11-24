@@ -114,7 +114,7 @@ class MoldScanPipeline {
         'Na calibração manual, informe a distância entre os marcadores (horizontal e vertical) em "Escala".',
       );
     }
-    if (printedMarkerMm < 120 || printedMarkerMm > 240) {
+    if (!(printedMarkerMm >= 120 && printedMarkerMm <= 240)) {
       throw const MoldScanException(
         'Informe o lado do quadrado preto impresso, em cm (o normal é 18,0).',
       );
@@ -129,12 +129,7 @@ class MoldScanPipeline {
     final warnings = <String>[];
 
     await stage('Lendo a foto...');
-    var photo = img.decodeImage(bytes);
-    if (photo == null) {
-      throw const MoldScanException(
-        'Não foi possível ler a imagem enviada. Use uma foto JPG ou PNG.',
-      );
-    }
+    var photo = decodePhoto(bytes);
     if (photo.exif.imageIfd.hasOrientation &&
         photo.exif.imageIfd.orientation != 1) {
       photo = img.bakeOrientation(photo);
@@ -298,6 +293,59 @@ class MoldScanPipeline {
       cameraPose: pose,
       scaleFromMarkers: scaleFromMarkers,
     );
+  }
+
+  /// Largest photo accepted, in pixels (width x height). A 48 MP phone photo
+  /// is 48e6; the limit leaves room for that and refuses files that declare
+  /// absurd sizes (a small PNG can claim 50000 x 50000, which would need
+  /// gigabytes to decode and freeze or kill the browser tab).
+  static const maxPhotoPixels = 64e6;
+
+  /// Decodes the photo as 8-bit RGB, whatever the file holds: the marker
+  /// detector and the rectifier read raw RGB bytes, so a 16-bit PNG, a
+  /// grayscale or paletted file would otherwise be read as garbage and fail
+  /// with a misleading "markers not found". The size declared in the header
+  /// is checked before decoding anything.
+  static img.Image decodePhoto(Uint8List bytes) {
+    const unreadable = MoldScanException(
+      'Não foi possível ler a imagem enviada. Use uma foto JPG ou PNG.',
+    );
+    final img.Decoder decoder;
+    final img.DecodeInfo info;
+    try {
+      decoder = img.findDecoderForData(bytes)!;
+      info = decoder.startDecode(bytes)!;
+    } catch (_) {
+      // Not an image (or truncated/empty): no decoder, or no header.
+      throw unreadable;
+    }
+    if (info.width <= 0 ||
+        info.height <= 0 ||
+        info.width * info.height > maxPhotoPixels) {
+      throw MoldScanException(
+        'A foto é grande demais (${info.width} x ${info.height} pixels). Use a foto da câmera do celular, '
+        'de até ${(maxPhotoPixels / 1e6).round()} megapixels.',
+      );
+    }
+    img.Image? photo;
+    try {
+      photo = decoder.decode(bytes);
+    } catch (_) {
+      throw unreadable;
+    }
+    if (photo == null) throw unreadable;
+    return toRgb8(photo);
+  }
+
+  /// [photo] as 8-bit RGB without palette, keeping its EXIF (rotation).
+  static img.Image toRgb8(img.Image photo) {
+    if (photo.format == img.Format.uint8 &&
+        photo.numChannels == 3 &&
+        !photo.hasPalette) {
+      return photo;
+    }
+    final exif = photo.exif;
+    return photo.convert(format: img.Format.uint8, numChannels: 3)..exif = exif;
   }
 
   /// A mold leaning on the wall with its foot away from it (or lying on a

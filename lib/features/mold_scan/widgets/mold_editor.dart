@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../services/cut_report_pdf_builder.dart';
 import '../services/dxf_writer.dart';
 import '../services/homography.dart';
+import '../services/number_input.dart';
 import '../services/mold_outline.dart';
 import '../services/mold_store.dart';
 import '../services/quote.dart';
@@ -273,8 +274,7 @@ class _MoldEditorState extends State<MoldEditor> {
   static String _fmt(double v) =>
       v.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '').replaceAll('.', ',');
 
-  static double? _num(TextEditingController c) =>
-      double.tryParse(c.text.trim().replaceAll(',', '.'));
+  static double? _num(TextEditingController c) => parseDecimal(c.text);
 
   double get _marginMm => _num(_margin) ?? 0;
 
@@ -341,10 +341,7 @@ class _MoldEditorState extends State<MoldEditor> {
   );
 
   String get _fileBase {
-    final n = _name.text
-        .trim()
-        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_')
-        .replaceAll(RegExp(r'^_+|_+$'), '');
+    final n = DxfWriter.safeFileBase(_name.text);
     final r = _result;
     return '${n.isEmpty ? 'molde' : n}${r == null ? '' : '_${r.width.round()}x${r.height.round()}mm'}';
   }
@@ -376,7 +373,7 @@ class _MoldEditorState extends State<MoldEditor> {
     final r = _result;
     if (r == null) return;
     downloadBytes(
-      SvgWriter.write(r, title: _name.text.trim()).codeUnits,
+      SvgWriter.bytes(r, title: _name.text.trim()),
       '$_fileBase.svg',
       'image/svg+xml',
     );

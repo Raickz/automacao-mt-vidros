@@ -2,17 +2,10 @@ import 'dart:convert';
 
 import 'package:web/web.dart' as web;
 
-import 'homography.dart';
 import 'mold_outline.dart';
+import 'saved_mold_codec.dart';
 
-/// A mold the worker saved ("MEUS"), kept in this browser's localStorage.
-class SavedMold {
-  final String id;
-  final String name;
-  final MoldOutline outline;
-
-  const SavedMold(this.id, this.name, this.outline);
-}
+export 'saved_mold_codec.dart' show SavedMold;
 
 /// Saved molds live only in this browser on this device: clearing site data
 /// or using another phone starts empty. Every access is guarded, since
@@ -24,22 +17,15 @@ class MoldStore {
   // v2: distances measured from the outer edges of the black squares.
   static const _spanKey = 'mt_marker_spans_v2';
 
+  // Unreadable saved-mold data is copied here before anything overwrites it,
+  // so a corrupted list can still be recovered by hand.
+  static const _backupKey = 'mt_saved_molds_v1_unreadable';
+
   static List<SavedMold> load() {
     try {
       final raw = web.window.localStorage.getItem(_key);
       if (raw == null) return [];
-      final list = jsonDecode(raw) as List;
-      return [
-        for (final e in list)
-          SavedMold(
-            e['id'] as String,
-            e['name'] as String,
-            MoldOutline([
-              for (final p in e['pts'] as List)
-                Point2D((p[0] as num).toDouble(), (p[1] as num).toDouble()),
-            ]),
-          ),
-      ];
+      return SavedMoldCodec.decode(raw) ?? [];
     } catch (_) {
       return [];
     }
@@ -47,23 +33,12 @@ class MoldStore {
 
   static bool _write(List<SavedMold> molds) {
     try {
-      web.window.localStorage.setItem(
-        _key,
-        jsonEncode([
-          for (final m in molds)
-            {
-              'id': m.id,
-              'name': m.name,
-              'pts': [
-                for (final p in m.outline.points)
-                  [
-                    double.parse(p.x.toStringAsFixed(2)),
-                    double.parse(p.y.toStringAsFixed(2)),
-                  ],
-              ],
-            },
-        ]),
-      );
+      final storage = web.window.localStorage;
+      final old = storage.getItem(_key);
+      if (old != null && SavedMoldCodec.decode(old) == null) {
+        storage.setItem(_backupKey, old);
+      }
+      storage.setItem(_key, SavedMoldCodec.encode(molds));
       return true;
     } catch (_) {
       return false;

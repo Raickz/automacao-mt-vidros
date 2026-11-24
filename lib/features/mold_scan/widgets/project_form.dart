@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/dxf_writer.dart';
 import '../services/homography.dart';
+import '../services/number_input.dart';
 import '../theme/mold_scan_theme.dart';
 
 /// What the worker types about the piece. It travels with the DXF — as
@@ -13,8 +14,7 @@ class ProjectData {
   final thickness = TextEditingController(text: '4');
   final instructions = TextEditingController();
 
-  double? get thicknessMm =>
-      double.tryParse(thickness.text.trim().replaceAll(',', '.'));
+  double? get thicknessMm => parseDecimal(thickness.text);
 
   String dxf(List<Point2D> contour) {
     final t = thicknessMm;

@@ -66,8 +66,8 @@ flutter analyze
 flutter test        # inclui testes de ponta a ponta e de precisão com fotos sintéticas (~5 min)
 ```
 
-Um push em `main` roda os testes e publica o site (workflow `Deploy Web`) 
-(o APK de debug só é gerado manualmente, workflow `Build APK`). A versão do Flutter é fixada nos dois workflows.
+Todo PR para `main` roda analyze, testes e build (workflow `Deploy Web`); só o push em `main` publica o site
+(o APK de debug só é gerado manualmente, workflow `Build APK`). Auditorias periódicas ficam em `docs/auditorias/`. A versão do Flutter é fixada nos dois workflows.
 
 Código em `lib/features/mold_scan/`:
 

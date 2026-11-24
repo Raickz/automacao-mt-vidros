@@ -1,3 +1,4 @@
+import '../services/number_input.dart';
 import 'mold_board_spec.dart';
 
 /// Outer size of the physical board the markers are glued on. The store's
@@ -46,7 +47,7 @@ class BoardGeometry {
   /// Reads the two size fields the user types, in cm (comma or dot decimals).
   /// Returns null when a value is not a number or the board is not [isUsable].
   static BoardGeometry? fromCentimeters(String width, String height) {
-    double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+    const parse = parseDecimal;
     final w = parse(width), h = parse(height);
     if (w == null || h == null) return null;
     final board = BoardGeometry(widthMm: w * 10, heightMm: h * 10);
@@ -68,7 +69,7 @@ class BoardGeometry {
     String vertical, {
     double outerEdgesSquareMm = 0,
   }) {
-    double? parse(String t) => double.tryParse(t.trim().replaceAll(',', '.'));
+    const parse = parseDecimal;
     final w = parse(horizontal), h = parse(vertical);
     if (w == null || h == null) return null;
     final board = BoardGeometry.fromSpansMm(
