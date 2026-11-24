@@ -41,6 +41,15 @@ jobs:
       # CDN do Google (funciona offline como PWA e não depende de terceiros).
       - run: flutter build web --base-href /automacao-mt-vidros/ --no-web-resources-cdn
 
+      # Versão do cache do app (commit) e do motor gráfico (revisão do Flutter)
+      # no service worker: o celular só baixa de novo o que mudou.
+      - name: Versionar o service worker
+        run: |
+          ENGINE=$(grep -o '"engineRevision":"[a-f0-9]*"' build/web/flutter_bootstrap.js | head -1 | cut -d'"' -f4)
+          test -n "$ENGINE"
+          sed -i "s/__BUILD__/${GITHUB_SHA}/; s/__ENGINE__/${ENGINE}/" build/web/sw.js
+          ! grep -q "__BUILD__\|__ENGINE__" build/web/sw.js
+
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:

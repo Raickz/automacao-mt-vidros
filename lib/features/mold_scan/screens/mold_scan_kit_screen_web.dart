@@ -6,7 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import '../models/board_geometry.dart';
 import '../services/camera_pose.dart';
 import '../services/homography.dart';
-import '../services/mold_board_pdf_builder.dart';
+// Deferred: package:pdf only loads when the markers PDF is asked for.
+import '../services/mold_board_pdf_builder.dart' deferred as board_pdf;
 import '../services/mold_scan_service_web.dart';
 import '../services/web_download.dart';
 import '../theme/mold_scan_colors.dart';
@@ -121,7 +122,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   Future<void> _downloadBoard() async {
     setState(() => _generatingBoard = true);
     try {
-      final bytes = await MoldBoardPdfBuilder.buildBytes();
+      await board_pdf.loadLibrary();
+      final bytes = await board_pdf.MoldBoardPdfBuilder.buildBytes();
       downloadBytes(
         bytes,
         'marcadores_quadro_referencia.pdf',
@@ -231,7 +233,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     var thumb = '';
     if (preview != null) {
       try {
-        final image = img.decodePng(preview);
+        final image = img.decodeJpg(preview);
         if (image != null) {
           thumb = base64Encode(
             img.encodeJpg(img.copyResize(image, width: 320), quality: 70),
@@ -260,6 +262,17 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
       );
     }
   }
+
+  /// How far along the scan is when each stage starts, by the time each
+  /// stage takes on a phone (the outline is most of it).
+  static const _stageProgress = {
+    'Lendo a foto...': 0.03,
+    'Procurando os 4 marcadores do quadro...': 0.08,
+    'Medindo a escala pelos marcadores...': 0.25,
+    'Corrigindo a perspectiva...': 0.3,
+    'Extraindo o contorno do molde...': 0.4,
+    'Montando a prévia...': 0.93,
+  };
 
   void _spansChanged() {
     MoldStore.setMarkerSpans(
@@ -606,9 +619,12 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 14),
-                  const SizedBox(
+                  SizedBox(
                     width: 240,
-                    child: LinearProgressIndicator(minHeight: 3),
+                    child: LinearProgressIndicator(
+                      minHeight: 3,
+                      value: _stageProgress[_stage],
+                    ),
                   ),
                 ],
               ),

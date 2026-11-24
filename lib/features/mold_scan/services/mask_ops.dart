@@ -179,11 +179,13 @@ Uint8List fillEnclosed(Uint8List mask, int w, int h, int maxGap) {
 /// let a dark stain inside it leak out as a bite.
 Uint8List fillHoles(Uint8List mask, int w, int h) {
   final reached = Uint8List(w * h);
-  final stack = <int>[];
+  // A typed stack: each pixel is pushed at most once.
+  final stack = Int32List(w * h);
+  var sp = 0;
   void seed(int i) {
     if (mask[i] == 0 && reached[i] == 0) {
       reached[i] = 1;
-      stack.add(i);
+      stack[sp++] = i;
     }
   }
 
@@ -195,8 +197,8 @@ Uint8List fillHoles(Uint8List mask, int w, int h) {
     seed(y * w);
     seed(y * w + w - 1);
   }
-  while (stack.isNotEmpty) {
-    final i = stack.removeLast();
+  while (sp > 0) {
+    final i = stack[--sp];
     final x = i % w;
     if (x > 0) seed(i - 1);
     if (x < w - 1) seed(i + 1);

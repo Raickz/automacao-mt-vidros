@@ -131,7 +131,7 @@ class ContourExtractor {
     final closeR = (closingRadiusMm * pixelsPerMm).round();
     final sliverR = (sliverRadiusMm * pixelsPerMm).round();
     final fillGap = (fillGapMm * pixelsPerMm).round();
-    Uint8List clean(Uint8List m) {
+    Uint8List clean(Uint8List m, int w, int h) {
       if (speck > 0) removeSmallComponents(m, w, h, speck);
       if (closeR > 0) m = closeGaps(m, w, h, closeR);
       m = fillHoles(m, w, h);
@@ -148,30 +148,68 @@ class ContourExtractor {
       return m;
     }
 
-    mask = clean(mask);
-    // Twice: the second pass learns from a core no longer polluted by lumps.
-    for (var pass = 0; pass < 2; pass++) {
-      final refined = _refineByColor(
-        image,
-        _largestOnly(mask, w, h),
-        allowed,
-        w,
-        h,
-        coreR: (colorCoreMm * pixelsPerMm).round(),
-        reachR: (colorReachMm * pixelsPerMm).round(),
-      );
-      if (refined != null) {
-        debugMask?.call('color', refined, w, h);
-        clearOutside(refined);
+    mask = clean(mask, w, h);
+
+    // The color passes only need the piece and a ring of board around it:
+    // run them on that window (a 60 x 50 cm piece on a 2 x 1.5 m board is a
+    // sixth of the pixels), then paste the result back.
+    final coreR = (colorCoreMm * pixelsPerMm).round();
+    final reachR = (colorReachMm * pixelsPerMm).round();
+    final piece = _largestOnly(mask, w, h);
+    final box = _bounds(piece, w, h);
+    if (box != null && coreR > 0 && reachR > 0) {
+      final margin = 2 * reachR + (200 * pixelsPerMm).round();
+      final x0 = max(0, box.$1 - margin), y0 = max(0, box.$2 - margin);
+      final x1 = min(w - 1, box.$3 + margin), y1 = min(h - 1, box.$4 + margin);
+      final rw = x1 - x0 + 1, rh = y1 - y0 + 1;
+      Uint8List crop8(Uint8List a) {
+        final out = Uint8List(rw * rh);
+        for (var y = 0; y < rh; y++) {
+          out.setRange(y * rw, (y + 1) * rw, a, (y + y0) * w + x0);
+        }
+        return out;
+      }
+
+      final dist16 = Uint16List(rw * rh);
+      for (var y = 0; y < rh; y++) {
+        dist16.setRange(y * rw, (y + 1) * rw, dist, (y + y0) * w + x0);
+      }
+      final window = img.copyCrop(image, x: x0, y: y0, width: rw, height: rh);
+      final allowedW = crop8(allowed);
+      var m = crop8(piece);
+      var refinedAny = false;
+      // Twice: the second pass learns from a core no longer polluted by lumps.
+      for (var pass = 0; pass < 2; pass++) {
+        final refined = _refineByColor(
+          window,
+          _largestOnly(m, rw, rh),
+          allowedW,
+          rw,
+          rh,
+          coreR: coreR,
+          reachR: reachR,
+        );
+        if (refined == null) break;
+        for (var i = 0; i < refined.length; i++) {
+          if (allowedW[i] == 0) refined[i] = 0;
+        }
         _placeEdgeByContrast(
           refined,
-          dist,
+          dist16,
           edgeContrastRatio,
-          w,
-          h,
+          rw,
+          rh,
           (edgeBandMm * pixelsPerMm).ceil(),
         );
-        mask = clean(refined);
+        m = clean(refined, rw, rh);
+        refinedAny = true;
+      }
+      if (refinedAny) {
+        mask = Uint8List(w * h);
+        for (var y = 0; y < rh; y++) {
+          mask.setRange((y + y0) * w + x0, (y + y0) * w + x0 + rw, m, y * rw);
+        }
+        debugMask?.call('color', mask, w, h);
       }
     }
 
@@ -264,6 +302,22 @@ class ContourExtractor {
       }
     }
     return (mask, dist, darkOnly);
+  }
+
+  /// Bounding box (x0, y0, x1, y1) of the set pixels, or null if none.
+  static (int, int, int, int)? _bounds(Uint8List m, int w, int h) {
+    var x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (var y = 0; y < h; y++) {
+      final row = y * w;
+      for (var x = 0; x < w; x++) {
+        if (m[row + x] == 0) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    return x1 < 0 ? null : (x0, y0, x1, y1);
   }
 
   static Uint8List _largestOnly(Uint8List mask, int w, int h) {

@@ -126,14 +126,59 @@ class MoldScanPipeline {
       await Future<void>.delayed(const Duration(milliseconds: 30));
     }
 
-    final warnings = <String>[];
-
     await stage('Lendo a foto...');
     var photo = decodePhoto(bytes);
     if (photo.exif.imageIfd.hasOrientation &&
         photo.exif.imageIfd.orientation != 1) {
       photo = img.bakeOrientation(photo);
     }
+    return runOnPhoto(
+      photo,
+      board: board,
+      printedMarkerMm: printedMarkerMm,
+      manualCenters: manualCenters,
+      onStage: onStage,
+      validated: true,
+    );
+  }
+
+  /// Same as [run], from an already decoded, upright 8-bit RGB photo (the
+  /// browser decodes JPEGs natively, many times faster than Dart).
+  static Future<MoldScanResult> runOnPhoto(
+    img.Image photo, {
+    BoardGeometry? board,
+    double printedMarkerMm = MoldBoardSpec.markerSizeMm,
+    List<Point2D>? manualCenters,
+    Future<void> Function(String stage)? onStage,
+    bool validated = false,
+  }) async {
+    if (!validated) {
+      if (board != null && !board.isUsable) {
+        throw const MoldScanException(BoardGeometry.spanHint);
+      }
+      if (manualCenters != null &&
+          (manualCenters.length != 4 || board == null)) {
+        throw const MoldScanException(
+          'Na calibração manual, informe a distância entre os marcadores (horizontal e vertical) em "Escala".',
+        );
+      }
+      if (!(printedMarkerMm >= 120 && printedMarkerMm <= 240)) {
+        throw const MoldScanException(
+          'Informe o lado do quadrado preto impresso, em cm (o normal é 18,0).',
+        );
+      }
+      if (photo.width * photo.height > maxPhotoPixels) {
+        throw const MoldScanException('A foto é grande demais.');
+      }
+    }
+
+    Future<void> stage(String s) async {
+      if (onStage == null) return;
+      await onStage(s);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+    }
+
+    final warnings = <String>[];
     final longSide = max(photo.width, photo.height);
     if (longSide > maxPhotoSide) {
       final k = maxPhotoSide / longSide;
@@ -307,9 +352,100 @@ class MoldScanPipeline {
   /// with a misleading "markers not found". The size declared in the header
   /// is checked before decoding anything.
   static img.Image decodePhoto(Uint8List bytes) {
-    const unreadable = MoldScanException(
-      'Não foi possível ler a imagem enviada. Use uma foto JPG ou PNG.',
-    );
+    final decoder = checkedDecoder(bytes);
+    img.Image? photo;
+    try {
+      // Frame 0 only: without it an animated PNG/WebP decodes every frame,
+      // and a 1 MB file with 60 frames of 2000 x 2000 took 865 MB and 11 s.
+      photo = decoder.decode(bytes, frame: 0);
+    } catch (_) {
+      throw _unreadable;
+    }
+    if (photo == null) throw _unreadable;
+    return toRgb8(photo);
+  }
+
+  static const _unreadable = MoldScanException(
+    'Não foi possível ler a imagem enviada. Use uma foto JPG ou PNG.',
+  );
+
+  /// Checks, reading only the first bytes, that [bytes] is a JPEG, PNG or
+  /// WebP of an acceptable size; throws [MoldScanException] otherwise. For
+  /// the browser's own decoder, which must never be handed a decompression
+  /// bomb. (The Dart decoders' own header readers scan the whole JPEG, which
+  /// took 0.3 s.)
+  static void checkHeader(Uint8List bytes) {
+    final size = imageSize(bytes);
+    if (size == null) throw _unreadable;
+    final (w, h) = size;
+    if (w <= 0 || h <= 0 || w * h > maxPhotoPixels) {
+      throw MoldScanException(
+        'A foto é grande demais ($w x $h pixels). Use a foto da câmera do celular, '
+        'de até ${(maxPhotoPixels / 1e6).round()} megapixels.',
+      );
+    }
+  }
+
+  /// Width and height declared in a JPEG, PNG or WebP header, or null when
+  /// [b] is none of them (or is truncated before the size).
+  static (int, int)? imageSize(Uint8List b) {
+    int u16be(int i) => (b[i] << 8) | b[i + 1];
+    int u32be(int i) =>
+        (b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3];
+    int u16le(int i) => b[i] | (b[i + 1] << 8);
+    int u24le(int i) => b[i] | (b[i + 1] << 8) | (b[i + 2] << 16);
+    try {
+      if (b.length > 4 && b[0] == 0xFF && b[1] == 0xD8) {
+        var i = 2;
+        while (i + 9 < b.length) {
+          if (b[i] != 0xFF) return null;
+          final m = b[i + 1];
+          if (m == 0xFF) {
+            i++;
+            continue;
+          }
+          // SOF0-SOF15 except DHT (C4), JPG (C8), DAC (CC) carry the size.
+          if (m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC) {
+            return (u16be(i + 7), u16be(i + 5));
+          }
+          if (m == 0xD8 || (m >= 0xD0 && m <= 0xD7) || m == 0x01) {
+            i += 2;
+            continue;
+          }
+          i += 2 + u16be(i + 2);
+        }
+        return null;
+      }
+      const png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+      if (b.length >= 24 &&
+          [for (var i = 0; i < 8; i++) b[i]].join(',') == png.join(',')) {
+        return (u32be(16), u32be(20));
+      }
+      if (b.length >= 30 &&
+          String.fromCharCodes(b.sublist(0, 4)) == 'RIFF' &&
+          String.fromCharCodes(b.sublist(8, 12)) == 'WEBP') {
+        final chunk = String.fromCharCodes(b.sublist(12, 16));
+        if (chunk == 'VP8 ') return (u16le(26) & 0x3FFF, u16le(28) & 0x3FFF);
+        if (chunk == 'VP8L') {
+          final bits = b[21] | (b[22] << 8) | (b[23] << 16) | (b[24] << 24);
+          return ((bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1);
+        }
+        if (chunk == 'VP8X') return (u24le(24) + 1, u24le(27) + 1);
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  /// The decoder for [bytes] after checking, from the header alone, that it
+  /// is a JPEG/PNG/WebP of an acceptable size; throws otherwise. Cheap: run
+  /// it before handing a file to any decoder, including the browser's.
+  static img.Decoder checkedDecoder(Uint8List bytes) {
+    // Own header reader first: it names the problem (size) even where the
+    // library's decoders refuse such a file with no reason given.
+    checkHeader(bytes);
+    const unreadable = _unreadable;
     final img.Decoder decoder;
     final img.DecodeInfo info;
     try {
@@ -333,16 +469,7 @@ class MoldScanPipeline {
         'de até ${(maxPhotoPixels / 1e6).round()} megapixels.',
       );
     }
-    img.Image? photo;
-    try {
-      // Frame 0 only: without it an animated PNG/WebP decodes every frame,
-      // and a 1 MB file with 60 frames of 2000 x 2000 took 865 MB and 11 s.
-      photo = decoder.decode(bytes, frame: 0);
-    } catch (_) {
-      throw unreadable;
-    }
-    if (photo == null) throw unreadable;
-    return toRgb8(photo);
+    return decoder;
   }
 
   /// [photo] as 8-bit RGB without palette, keeping its EXIF (rotation).
@@ -456,7 +583,9 @@ class MoldScanPipeline {
         thickness: 3,
       );
     }
-    return Uint8List.fromList(img.encodePng(small));
+    // JPEG: several times faster to encode than PNG in Dart, and a photo
+    // preview loses nothing visible.
+    return Uint8List.fromList(img.encodeJpg(small, quality: 88));
   }
 
   /// The 4 detected points must form a convex, clockwise (as seen on screen)

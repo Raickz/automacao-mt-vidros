@@ -2,9 +2,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pdf/widgets.dart' as pw;
 
-import '../services/cut_report_pdf_builder.dart';
+import '../services/cut_job.dart';
+// Loaded only when a PDF is asked for: package:pdf is big and would slow
+// down opening the app.
+import '../services/cut_report_pdf_builder.dart' deferred as report_pdf;
 import '../services/dxf_writer.dart';
 import '../services/homography.dart';
 import '../services/number_input.dart';
@@ -400,23 +402,27 @@ class _MoldEditorState extends State<MoldEditor> {
 
       final regular = await asset('assets/fonts/Barlow-Regular.ttf');
       final semi = await asset('assets/fonts/Barlow-SemiBold.ttf');
-      final font = regular == null ? null : pw.Font.ttf(regular);
-      final bold = semi == null ? null : pw.Font.ttf(semi);
+      await report_pdf.loadLibrary();
       if (label) {
         downloadBytes(
-          await CutReportPdfBuilder.label(r, job, font: font, bold: bold),
+          await report_pdf.CutReportPdfBuilder.label(
+            r,
+            job,
+            regularTtf: regular,
+            boldTtf: semi,
+          ),
           'etiqueta_$_fileBase.pdf',
           'application/pdf',
         );
       } else {
         final logo = await asset('assets/images/logo.png');
         downloadBytes(
-          await CutReportPdfBuilder.report(
+          await report_pdf.CutReportPdfBuilder.report(
             r,
             job,
             logoPng: logo?.buffer.asUint8List(),
-            font: font,
-            bold: bold,
+            regularTtf: regular,
+            boldTtf: semi,
           ),
           'relatorio_$_fileBase.pdf',
           'application/pdf',

@@ -63,6 +63,13 @@ Antes de confiar em peças grandes, meça uma peça conhecida (por exemplo 50 ×
 
 ## Desenvolvimento
 
+**Velocidade (não regredir):**
+- **Abertura:** `web/sw.js` guarda o app no aparelho, e da 2ª vez em diante ele abre do cache (o deploy grava a versão no `sw.js`). O motor gráfico fica num cache próprio, que só muda quando o Flutter muda. O PDF (`package:pdf`) é carregado sob demanda (`deferred`). As fontes estão reduzidas ao alfabeto latino e o logo foi otimizado.
+- **Foto:** é decodificada pelo navegador (`mold_scan_service_web.dart`), não em Dart. O tamanho é checado pelo cabeçalho antes.
+- **Laços pesados:** nunca dentro de função `async`. No dart2js os locais viram closure, e um laço de 8 milhões de passos levou 3 s em vez de 40 ms.
+- **Refinamento por cor:** roda só numa janela em volta do molde.
+- **Medir:** `flutter build web -t tool/bench_web.dart -o /tmp/bench`. Sirva a pasta com `test/real/fixtures/*.jpg` em `fixtures/` e leia o título da página. Referência num PC: piso 3,0 s e papelão 3,2 s.
+
 ```
 flutter pub get
 flutter analyze
