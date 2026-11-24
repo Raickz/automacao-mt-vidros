@@ -41,6 +41,9 @@ resultado, **Antes/Depois** alterna entre a foto original e a vista de cima com 
 Abre por **"Ajustar medida, margem, PDF e orçamento"** (molde digitalizado) ou por um molde da **Biblioteca**:
 
 - **Medida final**: largura e altura em mm, com proporção travada ou livre; girar 90°, espelhar, restaurar.
+- **Bordas retas e curvas** (ligado para molde fotografado): troca as ondinhas e degraus da foto por retas e
+  curvas lisas com cantos certos, sem mudar a medida; o "desvio aceito como reta" (2 a 15 mm) decide quando
+  um lado ondulado vira reta.
 - **Curva e margem**: polilinha ou spline; para molde digitalizado, suavizar (tira os degraus da foto) e
   simplificar (menos segmentos, até 0,3 mm de desvio); margem de corte positiva ou negativa.
 - **Medir** (dois toques no desenho) e **grade de 10 cm**.

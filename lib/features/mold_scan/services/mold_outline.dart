@@ -206,4 +206,221 @@ class MoldOutline {
     }
     return bestArea < base * 0.997 ? best : 0;
   }
+
+  /// Same outline with points every [stepMm] along its length.
+  MoldOutline resampled({double stepMm = 1}) {
+    final out = <Point2D>[];
+    final n = points.length;
+    var carry = 0.0;
+    for (var i = 0; i < n; i++) {
+      final a = points[i], b = points[(i + 1) % n];
+      final len = sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
+      if (len == 0) continue;
+      var t = carry;
+      while (t < len) {
+        out.add(
+          Point2D(a.x + (b.x - a.x) * t / len, a.y + (b.y - a.y) * t / len),
+        );
+        t += stepMm;
+      }
+      carry = t - len;
+    }
+    return out.length < 3 ? this : MoldOutline(out);
+  }
+
+  /// Rebuilds the outline as glass is cut: straight edges and smooth
+  /// curves, meeting at clean corners. A traced photo has small jogs and
+  /// waves (a pixel step, a frayed cardboard edge) that the cutting table
+  /// would faithfully copy.
+  ///
+  /// Corners are where the direction turns more than [cornerDegrees],
+  /// measured over [spanMm] on each side (so a 1-2 mm jog is not a corner).
+  /// Each stretch between corners becomes a straight line (a least-squares
+  /// fit) when it stays within [straightToleranceMm] (scaled up
+  /// on long edges: 0.3% of the length per mm of tolerance) of its chord, otherwise
+  /// a curve smoothed over ~[smoothMm]. Corners between two straight edges
+  /// are the exact intersection of the two fitted lines.
+  MoldOutline regularized({
+    double cornerDegrees = 35,
+    double spanMm = 15,
+    double straightToleranceMm = 4,
+    double smoothMm = 12,
+  }) {
+    final dense = resampled().points;
+    final n = dense.length;
+    final l = spanMm.round();
+    if (n < 4 * l) return this;
+    Point2D at(int i) => dense[((i % n) + n) % n];
+
+    // Turning angle at every point, over +-l points.
+    final turn = List<double>.filled(n, 0);
+    for (var i = 0; i < n; i++) {
+      final a = at(i - l), b = at(i), c = at(i + l);
+      final v1x = b.x - a.x, v1y = b.y - a.y, v2x = c.x - b.x, v2y = c.y - b.y;
+      final d = sqrt(v1x * v1x + v1y * v1y) * sqrt(v2x * v2x + v2y * v2y);
+      if (d == 0) continue;
+      turn[i] = acos(((v1x * v2x + v1y * v2y) / d).clamp(-1.0, 1.0)) * 180 / pi;
+    }
+    final corners = <int>[];
+    for (var i = 0; i < n; i++) {
+      if (turn[i] < cornerDegrees) continue;
+      var isMax = true;
+      for (var k = -l; k <= l && isMax; k++) {
+        final j = ((i + k) % n + n) % n;
+        if (turn[j] > turn[i] || (turn[j] == turn[i] && j < i && k != 0)) {
+          isMax = false;
+        }
+      }
+      if (isMax) corners.add(i);
+    }
+
+    List<Point2D> smoothRun(List<Point2D> run, {required bool closed}) {
+      final w = max(1, (smoothMm / 2).round());
+      final m = run.length;
+      final out = <Point2D>[];
+      for (var i = 0; i < m; i++) {
+        if (!closed && (i == 0 || i == m - 1)) {
+          out.add(run[i]);
+          continue;
+        }
+        // Shrink the window near the ends of an open run so its end
+        // points stay put.
+        final k = closed ? w : min(w, min(i, m - 1 - i));
+        var sx = 0.0, sy = 0.0;
+        for (var j = -k; j <= k; j++) {
+          final p = run[((i + j) % m + m) % m];
+          sx += p.x;
+          sy += p.y;
+        }
+        out.add(Point2D(sx / (2 * k + 1), sy / (2 * k + 1)));
+      }
+      return out;
+    }
+
+    if (corners.isEmpty) {
+      return MoldOutline(smoothRun(dense, closed: true))
+          .simplified(toleranceMm: 0.2);
+    }
+
+    // Runs between consecutive corners, and a straight-line fit for each.
+    final runs = <List<Point2D>>[];
+    for (var c = 0; c < corners.length; c++) {
+      final from = corners[c];
+      var to = corners[(c + 1) % corners.length];
+      if (to <= from) to += n;
+      runs.add([for (var i = from; i <= to; i++) at(i)]);
+    }
+    final lines = <(Point2D, Point2D)?>[]; // point on line, unit direction
+    for (final run in runs) {
+      final a = run.first, b = run.last;
+      final len = sqrt(pow(b.x - a.x, 2) + pow(b.y - a.y, 2));
+      var maxDev = 0.0;
+      for (final p in run) {
+        final dev = len == 0
+            ? 0.0
+            : ((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)).abs() /
+                  len;
+        maxDev = max(maxDev, dev);
+      }
+      // A long edge may wave a little more and still be meant straight
+      // (frayed cardboard, a sagging edge): a real curve bows far more.
+      if (len == 0 ||
+          maxDev >
+              max(straightToleranceMm, len * straightToleranceMm * 0.003)) {
+        lines.add(null);
+        continue;
+      }
+      // Total least squares on the middle of the run (its ends bend into
+      // the neighboring corners).
+      final cut = min(l ~/ 2, run.length ~/ 4);
+      final mid = run.sublist(cut, run.length - cut);
+      final mx = mid.map((p) => p.x).reduce((x, y) => x + y) / mid.length;
+      final my = mid.map((p) => p.y).reduce((x, y) => x + y) / mid.length;
+      var sxx = 0.0, sxy = 0.0, syy = 0.0;
+      for (final p in mid) {
+        sxx += (p.x - mx) * (p.x - mx);
+        sxy += (p.x - mx) * (p.y - my);
+        syy += (p.y - my) * (p.y - my);
+      }
+      final angle = 0.5 * atan2(2 * sxy, sxx - syy);
+      lines.add((Point2D(mx, my), Point2D(cos(angle), sin(angle))));
+    }
+
+    // Two straight edges in a row that are nearly aligned are one edge
+    // (a wave in it was taken for a corner): merge and refit.
+    (Point2D, Point2D) fit(List<Point2D> pts) {
+      final mx = pts.map((p) => p.x).reduce((x, y) => x + y) / pts.length;
+      final my = pts.map((p) => p.y).reduce((x, y) => x + y) / pts.length;
+      var sxx = 0.0, sxy = 0.0, syy = 0.0;
+      for (final p in pts) {
+        sxx += (p.x - mx) * (p.x - mx);
+        sxy += (p.x - mx) * (p.y - my);
+        syy += (p.y - my) * (p.y - my);
+      }
+      final angle = 0.5 * atan2(2 * sxy, sxx - syy);
+      return (Point2D(mx, my), Point2D(cos(angle), sin(angle)));
+    }
+
+    var merged = true;
+    while (merged && runs.length > 2) {
+      merged = false;
+      for (var c = 0; c < runs.length; c++) {
+        final d = (c + 1) % runs.length;
+        final a = lines[c], b = lines[d];
+        if (a == null || b == null) continue;
+        final cosAngle = (a.$2.x * b.$2.x + a.$2.y * b.$2.y).abs();
+        if (cosAngle < cos(8 * pi / 180)) continue;
+        final joined = [...runs[c], ...runs[d].skip(1)];
+        runs[c] = joined;
+        lines[c] = fit(joined);
+        corners.removeAt(d);
+        runs.removeAt(d);
+        lines.removeAt(d);
+        merged = true;
+        break;
+      }
+    }
+
+    Point2D project(Point2D p, (Point2D, Point2D) line) {
+      final (o, d) = line;
+      final t = (p.x - o.x) * d.x + (p.y - o.y) * d.y;
+      return Point2D(o.x + d.x * t, o.y + d.y * t);
+    }
+
+    // Corner c sits between run c-1 (ending there) and run c (starting there).
+    final cornerPts = <Point2D>[];
+    for (var c = 0; c < corners.length; c++) {
+      final before = lines[(c - 1 + corners.length) % corners.length],
+          after = lines[c];
+      final raw = at(corners[c]);
+      if (before != null && after != null) {
+        final (o1, d1) = before;
+        final (o2, d2) = after;
+        final den = d1.x * d2.y - d1.y * d2.x;
+        if (den.abs() > sin(10 * pi / 180)) {
+          final t = ((o2.x - o1.x) * d2.y - (o2.y - o1.y) * d2.x) / den;
+          cornerPts.add(Point2D(o1.x + d1.x * t, o1.y + d1.y * t));
+          continue;
+        }
+      }
+      cornerPts.add(
+        before != null
+            ? project(raw, before)
+            : (after != null ? project(raw, after) : raw),
+      );
+    }
+
+    final out = <Point2D>[];
+    for (var c = 0; c < runs.length; c++) {
+      out.add(cornerPts[c]);
+      if (lines[c] != null) continue; // straight: next corner closes it
+      final run = [...runs[c]];
+      run[0] = cornerPts[c];
+      run[run.length - 1] = cornerPts[(c + 1) % runs.length];
+      final curve = MoldOutline(smoothRun(run, closed: false)).points;
+      final simple = PolylineSimplifier.simplify(curve, 0.2);
+      out.addAll(simple.sublist(1, simple.length - 1));
+    }
+    return out.length < 3 ? this : MoldOutline(out);
+  }
 }
