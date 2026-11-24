@@ -229,6 +229,10 @@ class _MoldEditorState extends State<MoldEditor> {
   bool _lock = true;
   bool _spline = false;
   bool _smooth = false;
+  // Glass is cut with straight edges and smooth curves: on by default for
+  // traced photos, whose outline has small jogs and waves.
+  late bool _regular = widget.fromScan;
+  double _straightTol = 4;
   bool _simplify = false;
   bool _grid = false;
   bool _measuring = false;
@@ -293,6 +297,7 @@ class _MoldEditorState extends State<MoldEditor> {
     final m = _marginMm;
     if (m.abs() > min(w, h) / 4) return null;
     var o = _base;
+    if (_regular) o = o.regularized(straightToleranceMm: _straightTol);
     if (_smooth) o = o.smoothed();
     if (_simplify) o = o.simplified();
     o = o.resized(w, h);
@@ -660,6 +665,8 @@ class _MoldEditorState extends State<MoldEditor> {
                 onPressed: () => setState(() {
                   _base = widget.original();
                   _spline = _smooth = _simplify = false;
+                  _regular = widget.fromScan;
+                  _straightTol = 4;
                   _margin.text = '0';
                   _measure = const [];
                   _resetSize();
@@ -679,6 +686,43 @@ class _MoldEditorState extends State<MoldEditor> {
             selected: {_spline},
             onSelectionChanged: (s) => setState(() => _spline = s.first),
           ),
+          const SizedBox(height: 6),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _regular,
+            onChanged: (v) => _changedWith(() => _regular = v),
+            title: const Text('Bordas retas e curvas (como o vidro)'),
+            subtitle: const Text(
+              'Troca as ondinhas e degraus da foto por retas e curvas lisas, com cantos certos. '
+              'A medida não muda.',
+            ),
+          ),
+          if (_regular) ...[
+            Text(
+              'Desvio aceito como reta: ${_straightTol.toStringAsFixed(0)} mm',
+              style: const TextStyle(
+                color: MoldScanColors.textSecondary,
+                fontSize: 13.5,
+              ),
+            ),
+            Slider(
+              value: _straightTol,
+              min: 2,
+              max: 15,
+              divisions: 13,
+              label: '${_straightTol.toStringAsFixed(0)} mm',
+              onChanged: (v) => _changedWith(() => _straightTol = v),
+            ),
+            const Text(
+              'Aumente se um lado reto do molde ainda saiu ondulado (papelão rasgado); diminua se uma '
+              'curva suave virou reta.',
+              style: TextStyle(
+                color: MoldScanColors.textSecondary,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          ],
           if (widget.fromScan) ...[
             const SizedBox(height: 6),
             SwitchListTile(

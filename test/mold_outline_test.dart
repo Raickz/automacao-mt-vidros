@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/mold_outline.dart';
@@ -126,5 +128,85 @@ void main() {
     )!;
     expect(b.spanXMm, closeTo(1794, 1e-9));
     expect(b.spanYMm, closeTo(1320, 1e-9));
+  });
+
+  group('regularizar (bordas retas e curvas)', () {
+    // A 700 x 250 rectangle traced like a photo: 1 mm points, 1.5 mm jogs
+    // along the long sides and +-0.6 mm noise.
+    List<Point2D> tracedRect() {
+      final pts = <Point2D>[];
+      var seed = 7;
+      double noise() {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return (seed / 0x7fffffff - 0.5) * 1.2;
+      }
+
+      for (var x = 0; x < 700; x++) {
+        pts.add(
+          Point2D(x.toDouble(), (x > 300 && x < 420 ? 1.5 : 0) + noise()),
+        );
+      }
+      for (var y = 0; y < 250; y++) {
+        pts.add(Point2D(700 + noise(), y.toDouble()));
+      }
+      for (var x = 700; x > 0; x--) {
+        pts.add(
+          Point2D(
+            x.toDouble(),
+            250 + (x > 100 && x < 160 ? -1.5 : 0) + noise(),
+          ),
+        );
+      }
+      for (var y = 250; y > 0; y--) {
+        pts.add(Point2D(noise(), y.toDouble()));
+      }
+      return pts;
+    }
+
+    test('retângulo com degraus e ruído vira 4 cantos retos na medida', () {
+      final r = MoldOutline(tracedRect()).regularized();
+      expect(r.points.length, 4);
+      expect(r.width, closeTo(700, 1.0));
+      expect(r.height, closeTo(250, 1.0));
+    });
+
+    test('círculo continua curva lisa, sem cantos, na medida', () {
+      final c = MoldCatalog.all[0].outline().resized(600, 600).resampled();
+      var seed = 3;
+      final noisy = MoldOutline([
+        for (final p in c.points)
+          () {
+            seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+            final e = (seed / 0x7fffffff - 0.5) * 1.5;
+            return Point2D(p.x + e, p.y - e);
+          }(),
+      ]);
+      final r = noisy.regularized();
+      expect(r.points.length, greaterThan(40));
+      expect(r.width, closeTo(600, 2));
+      expect(r.height, closeTo(600, 2));
+    });
+
+    test('peça com um lado curvo mantém os cantos retos e a curva', () {
+      // 610 x 500, top edge sagging 60 mm in a smooth arc.
+      final pts = <Point2D>[];
+      for (var x = 0; x <= 610; x++) {
+        pts.add(Point2D(x.toDouble(), 60 * sin(pi * x / 610 / 2)));
+      }
+      for (var y = 61; y <= 500; y++) {
+        pts.add(Point2D(610, y.toDouble()));
+      }
+      for (var x = 609; x >= 0; x--) {
+        pts.add(Point2D(x.toDouble(), 500));
+      }
+      for (var y = 499; y > 0; y--) {
+        pts.add(Point2D(0, y.toDouble()));
+      }
+      final r = MoldOutline(pts).regularized();
+      expect(r.width, closeTo(610, 1.5));
+      expect(r.height, closeTo(500, 1.5));
+      expect(r.points.length, greaterThan(8), reason: 'a curva continua curva');
+      expect(r.points.length, lessThan(200));
+    });
   });
 }

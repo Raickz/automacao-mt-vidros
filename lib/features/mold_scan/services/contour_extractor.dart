@@ -71,7 +71,8 @@ class ContourExtractor {
     double closingRadiusMm = 8,
     double edgeBandMm = 4,
     double fillGapMm = 150,
-    double protrusionRadiusMm = 15,
+    double colorCoreMm = 25,
+    double colorReachMm = 30,
     double speckAreaMm2 = 150,
     double sliverRadiusMm = 6,
     List<MmRect> excludedRegionsMm = const [],
@@ -89,23 +90,30 @@ class ContourExtractor {
     var mask = mask0;
 
     final band = (ignoreBorderMm * pixelsPerMm).ceil();
-    if (band > 0) {
-      clearRect(mask, w, h, 0, band - 1, 0, h - 1);
-      clearRect(mask, w, h, w - band, w - 1, 0, h - 1);
-      clearRect(mask, w, h, 0, w - 1, 0, band - 1);
-      clearRect(mask, w, h, 0, w - 1, h - band, h - 1);
+    // Where the piece may be at all: not the border band, not the markers.
+    final allowed = Uint8List(w * h)..fillRange(0, w * h, 1);
+    void clearOutside(Uint8List m) {
+      if (band > 0) {
+        clearRect(m, w, h, 0, band - 1, 0, h - 1);
+        clearRect(m, w, h, w - band, w - 1, 0, h - 1);
+        clearRect(m, w, h, 0, w - 1, 0, band - 1);
+        clearRect(m, w, h, 0, w - 1, h - band, h - 1);
+      }
+      for (final r in excludedRegionsMm) {
+        clearRect(
+          m,
+          w,
+          h,
+          (r.left * pixelsPerMm).floor(),
+          (r.right * pixelsPerMm).ceil(),
+          (r.top * pixelsPerMm).floor(),
+          (r.bottom * pixelsPerMm).ceil(),
+        );
+      }
     }
-    for (final r in excludedRegionsMm) {
-      clearRect(
-        mask,
-        w,
-        h,
-        (r.left * pixelsPerMm).floor(),
-        (r.right * pixelsPerMm).ceil(),
-        (r.top * pixelsPerMm).floor(),
-        (r.bottom * pixelsPerMm).ceil(),
-      );
-    }
+
+    clearOutside(mask);
+    clearOutside(allowed);
 
     debugMask?.call('classify', mask, w, h);
     debugMask?.call('dark', darkOnly, w, h);
@@ -120,26 +128,52 @@ class ContourExtractor {
 
     debugMask?.call('edge', mask, w, h);
     final speck = (speckAreaMm2 * pixelsPerMm * pixelsPerMm).round();
-    if (speck > 0) removeSmallComponents(mask, w, h, speck);
     final closeR = (closingRadiusMm * pixelsPerMm).round();
-    if (closeR > 0) mask = closeGaps(mask, w, h, closeR);
-    mask = fillHoles(mask, w, h);
     final sliverR = (sliverRadiusMm * pixelsPerMm).round();
-    if (sliverR > 0) {
-      dropSlivers(
-        mask,
-        w,
-        h,
-        sliverR,
-        edgeZone: band > 0 ? band + sliverR + 2 : 0,
-      );
+    final fillGap = (fillGapMm * pixelsPerMm).round();
+    Uint8List clean(Uint8List m) {
+      if (speck > 0) removeSmallComponents(m, w, h, speck);
+      if (closeR > 0) m = closeGaps(m, w, h, closeR);
+      m = fillHoles(m, w, h);
+      if (sliverR > 0) {
+        dropSlivers(
+          m,
+          w,
+          h,
+          sliverR,
+          edgeZone: band > 0 ? band + sliverR + 2 : 0,
+        );
+      }
+      if (fillGap > 0) m = fillEnclosed(m, w, h, fillGap);
+      return m;
     }
 
-    final fillGap = (fillGapMm * pixelsPerMm).round();
-    if (fillGap > 0) mask = fillEnclosed(mask, w, h, fillGap);
-
-    final pruneR = (protrusionRadiusMm * pixelsPerMm).round();
-    if (pruneR > 0) _pruneDarkProtrusions(mask, darkOnly, mask0, w, h, pruneR);
+    mask = clean(mask);
+    // Twice: the second pass learns from a core no longer polluted by lumps.
+    for (var pass = 0; pass < 2; pass++) {
+      final refined = _refineByColor(
+        image,
+        _largestOnly(mask, w, h),
+        allowed,
+        w,
+        h,
+        coreR: (colorCoreMm * pixelsPerMm).round(),
+        reachR: (colorReachMm * pixelsPerMm).round(),
+      );
+      if (refined != null) {
+        debugMask?.call('color', refined, w, h);
+        clearOutside(refined);
+        _placeEdgeByContrast(
+          refined,
+          dist,
+          edgeContrastRatio,
+          w,
+          h,
+          (edgeBandMm * pixelsPerMm).ceil(),
+        );
+        mask = clean(refined);
+      }
+    }
 
     debugMask?.call('final', mask, w, h);
     final largest = labelLargest(mask, w, h);
@@ -232,62 +266,84 @@ class ContourExtractor {
     return (mask, dist, darkOnly);
   }
 
-  /// Wall stains, a cast shadow or the dark gap behind a piece often touch
-  /// its edge and get glued to it as lumps. They are "piece" only for being
-  /// darker than the board, while a colored piece (cardboard, wood, MDF) is
-  /// mostly told apart by its color. So, on a mostly colored piece, the
-  /// parts that stick out of its core (what an opening of radius [r]
-  /// removes) and are mostly dark-only are cut off. A dark piece (black
-  /// rubber, dark paint) is mostly dark-only itself and is left untouched.
-  static void _pruneDarkProtrusions(
-    Uint8List mask,
-    Uint8List darkOnly,
-    Uint8List classified,
-    int w,
-    int h,
-    int r,
-  ) {
-    final core = boxMorph(
-      boxMorph(mask, w, h, r, erode: true),
-      w,
-      h,
-      r,
-      erode: false,
-    );
-    var coreColored = 0, coreDark = 0;
-    for (var i = 0; i < mask.length; i++) {
-      if (core[i] == 0 || classified[i] == 0) continue;
-      if (darkOnly[i] != 0) {
-        coreDark++;
-      } else {
-        coreColored++;
-      }
+  static Uint8List _largestOnly(Uint8List mask, int w, int h) {
+    final l = labelLargest(mask, w, h);
+    final out = Uint8List(w * h);
+    if (l.bestCount == 0) return out;
+    for (var i = 0; i < out.length; i++) {
+      if (l.labels[i] == l.bestLabel) out[i] = 1;
     }
-    if (coreColored < 3 * coreDark) return;
+    return out;
+  }
 
-    final rest = Uint8List(mask.length);
-    for (var i = 0; i < mask.length; i++) {
-      if (mask[i] != 0 && core[i] == 0) rest[i] = 1;
+  /// Second pass that tells piece from board by the piece's *own* colors.
+  /// The first pass only asks "does this differ from the board?", which
+  /// fails both ways on real photos: a dark stain on dirty wood can match a
+  /// gray wall (bites), and a dark stain on the floor next to a light stone
+  /// slab differs from the floor's average (lumps glued to the piece).
+  ///
+  /// The colors of the piece are learned from its safe core (the piece
+  /// eroded by [coreR]) and the board's from everything farther than
+  /// [reachR] from it. Near the edge (within [reachR] on both sides) each
+  /// pixel goes to whichever color histogram makes it more likely; colors
+  /// seen too rarely keep the first pass's answer. Returns null when the
+  /// piece is too small to have a core.
+  static Uint8List? _refineByColor(
+    img.Image image,
+    Uint8List piece,
+    Uint8List allowed,
+    int w,
+    int h, {
+    required int coreR,
+    required int reachR,
+  }) {
+    if (coreR <= 0 || reachR <= 0) return null;
+    final core = boxMorph(piece, w, h, coreR, erode: true);
+    var coreCount = 0;
+    for (final v in core) {
+      coreCount += v;
     }
-    final comps = labelLargest(rest, w, h).labels;
-    final dark = <int, int>{}, colored = <int, int>{};
-    for (var i = 0; i < mask.length; i++) {
-      final l = comps[i];
-      if (l == 0 || classified[i] == 0) continue;
-      if (darkOnly[i] != 0) {
-        dark[l] = (dark[l] ?? 0) + 1;
-      } else {
-        colored[l] = (colored[l] ?? 0) + 1;
+    if (coreCount < 400) return null;
+    final near = boxMorph(piece, w, h, reachR, erode: false);
+    final far = boxMorph(near, w, h, reachR, erode: false);
+
+    final rgb = image.getBytes(order: img.ChannelOrder.rgb);
+    int bin(int i) =>
+        ((rgb[i * 3] >> 3) << 10) |
+        ((rgb[i * 3 + 1] >> 3) << 5) |
+        (rgb[i * 3 + 2] >> 3);
+    final moldHist = Int32List(32768), boardHist = Int32List(32768);
+    var nMold = 0, nBoard = 0;
+    for (var i = 0; i < piece.length; i++) {
+      if (allowed[i] == 0) continue;
+      if (core[i] != 0) {
+        moldHist[bin(i)]++;
+        nMold++;
+      } else if (far[i] == 0) {
+        boardHist[bin(i)]++;
+        nBoard++;
       }
     }
-    final drop = <int>{
-      for (final l in dark.keys)
-        if (dark[l]! > 1.5 * (colored[l] ?? 0)) l,
-    };
-    if (drop.isEmpty) return;
-    for (var i = 0; i < mask.length; i++) {
-      if (drop.contains(comps[i])) mask[i] = 0;
+    if (nBoard < 400) return null;
+
+    final out = Uint8List(w * h);
+    for (var i = 0; i < out.length; i++) {
+      if (allowed[i] == 0) continue;
+      if (core[i] != 0) {
+        out[i] = 1;
+        continue;
+      }
+      if (near[i] == 0) continue;
+      final b = bin(i);
+      final m = moldHist[b], g = boardHist[b];
+      if (m + g < 3) {
+        out[i] = piece[i];
+      } else {
+        // Same-size samples would compare counts; scale by sample sizes.
+        out[i] = m * nBoard >= g * nMold ? 1 : 0;
+      }
     }
+    return out;
   }
 
   /// The sensitive thresholds in [_classify] are good at *finding* a
