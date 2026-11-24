@@ -157,6 +157,34 @@ void main() {
         isTrue,
       );
     });
+
+    test(
+      'espessura absurda (erro de digitação) não encolhe o molde em silêncio',
+      () {
+        const pose = CameraPose(nadirMm: Point2D(1000, 500), heightMm: 2500);
+        final contour = rect(0, 0, 2000, 1000);
+        // "350" no lugar de 35 mm encolheria o molde 14%.
+        for (final t in [350.0, double.infinity, double.nan, 1300.0]) {
+          expect(
+            identical(
+              CameraPoseEstimator.correctForThickness(contour, pose, t),
+              contour,
+            ),
+            isTrue,
+            reason: '$t',
+          );
+          expect(CameraPoseEstimator.isPlausibleThickness(t, pose), isFalse);
+        }
+        expect(CameraPoseEstimator.isPlausibleThickness(35, pose), isTrue);
+        expect(
+          CameraPoseEstimator.isPlausibleThickness(
+            CameraPoseEstimator.maxThicknessMm,
+            pose,
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 
   group('medição de ponta a ponta com câmera de verdade', () {
