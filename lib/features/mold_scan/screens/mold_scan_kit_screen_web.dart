@@ -291,6 +291,11 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     if (pose == null) {
       return 'Não foi possível estimar a distância da câmera, então a espessura não foi descontada.';
     }
+    if (!CameraPoseEstimator.isPlausibleThickness(t, pose)) {
+      return 'A espessura digitada (${t.toStringAsFixed(1).replaceAll('.', ',')} mm) passa de '
+          '${CameraPoseEstimator.maxThicknessMm.round()} mm e parece engano de digitação, então NÃO foi '
+          'descontada. Confira o campo "Espessura do molde" (em milímetros).';
+    }
     double span(List<Point2D> pts, double Function(Point2D) f) =>
         pts.map(f).reduce((a, b) => a > b ? a : b) -
         pts.map(f).reduce((a, b) => a < b ? a : b);

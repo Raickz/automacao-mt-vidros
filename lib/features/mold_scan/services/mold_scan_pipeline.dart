@@ -313,10 +313,16 @@ class MoldScanPipeline {
     final img.Decoder decoder;
     final img.DecodeInfo info;
     try {
-      decoder = img.findDecoderForData(bytes)!;
+      // Only what phones produce. The other decoders in package:image (TIFF,
+      // PSD, EXR, TGA...) are more exposed to malformed files.
+      decoder = <img.Decoder>[
+        img.JpegDecoder(),
+        img.PngDecoder(),
+        img.WebPDecoder(),
+      ].firstWhere((d) => d.isValidFile(bytes));
       info = decoder.startDecode(bytes)!;
     } catch (_) {
-      // Not an image (or truncated/empty): no decoder, or no header.
+      // Not JPEG/PNG/WebP (or truncated/empty): no decoder, or no header.
       throw unreadable;
     }
     if (info.width <= 0 ||
@@ -329,7 +335,9 @@ class MoldScanPipeline {
     }
     img.Image? photo;
     try {
-      photo = decoder.decode(bytes);
+      // Frame 0 only: without it an animated PNG/WebP decodes every frame,
+      // and a 1 MB file with 60 frames of 2000 x 2000 took 865 MB and 11 s.
+      photo = decoder.decode(bytes, frame: 0);
     } catch (_) {
       throw unreadable;
     }

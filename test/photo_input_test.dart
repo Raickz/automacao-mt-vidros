@@ -93,4 +93,41 @@ void main() {
       throwsA(isA<MoldScanException>()),
     );
   });
+
+  test('PNG animado: só o primeiro quadro é decodificado', () {
+    // 60 quadros de 600 x 400: antes eram todos decodificados (com 2000 x 2000
+    // um arquivo de 1 MB levava 865 MB de memória e 11 s).
+    final first = img.Image(width: 600, height: 400)
+      ..clear(img.ColorRgb8(10, 200, 30));
+    for (var i = 1; i < 60; i++) {
+      first.addFrame(img.Image(width: 600, height: 400));
+    }
+    final bytes = Uint8List.fromList(img.encodePng(first));
+    final p = MoldScanPipeline.decodePhoto(bytes);
+    expect(p.numFrames, 1);
+    expect(p.width, 600);
+    expect(p.getPixel(3, 3).g, closeTo(200, 2));
+  });
+
+  test('só JPEG, PNG e WebP são aceitos', () {
+    final small = img.Image(width: 8, height: 8);
+    for (final bytes in [
+      img.encodeTiff(small),
+      img.encodeBmp(small),
+      img.encodeTga(small),
+      img.encodeGif(small),
+    ]) {
+      expect(
+        () => MoldScanPipeline.decodePhoto(Uint8List.fromList(bytes)),
+        throwsA(
+          isA<MoldScanException>().having(
+            (e) => e.message,
+            'mensagem',
+            contains('JPG ou PNG'),
+          ),
+        ),
+      );
+    }
+    expect(MoldScanPipeline.decodePhoto(img.encodeJpg(small)).width, 8);
+  });
 }

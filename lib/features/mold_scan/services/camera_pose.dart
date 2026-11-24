@@ -85,6 +85,19 @@ class CameraPoseEstimator {
     return CameraPose(nadirMm: Point2D(cxw, cyw), heightMm: h);
   }
 
+  /// Thickest mold corrected. Molds are cardboard, MDF or a door (up to
+  /// ~5 cm); a value above this is a typo ("350" for 35 mm, or cm typed as
+  /// mm) and would shrink the outline by >10% without anyone noticing.
+  static const maxThicknessMm = 100.0;
+
+  /// Whether [thicknessMm] is one the correction will apply.
+  static bool isPlausibleThickness(double? thicknessMm, CameraPose? pose) =>
+      thicknessMm != null &&
+      thicknessMm.isFinite &&
+      thicknessMm > 0 &&
+      thicknessMm <= maxThicknessMm &&
+      (pose == null || thicknessMm < pose.heightMm / 2);
+
   /// Recovers the mold's real outline (its base, on the board) from the
   /// silhouette seen in the photo.
   ///
@@ -104,15 +117,11 @@ class CameraPoseEstimator {
     CameraPose? pose,
     double? thicknessMm,
   ) {
-    if (pose == null ||
-        thicknessMm == null ||
-        !thicknessMm.isFinite ||
-        thicknessMm <= 0 ||
-        thicknessMm >= pose.heightMm / 2) {
+    if (pose == null || !isPlausibleThickness(thicknessMm, pose)) {
       return contour;
     }
     if (contour.length < 3) return contour;
-    final k = pose.heightMm / (pose.heightMm - thicknessMm);
+    final k = pose.heightMm / (pose.heightMm - thicknessMm!);
     final nx = pose.nadirMm.x, ny = pose.nadirMm.y;
 
     final x0 = contour.map((p) => p.x).reduce(min).floor() - 3;
