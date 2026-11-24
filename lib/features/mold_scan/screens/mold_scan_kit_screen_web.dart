@@ -19,6 +19,11 @@ import '../services/mold_store.dart';
 import '../services/number_input.dart';
 import '../widgets/corner_picker.dart';
 import '../widgets/mold_editor.dart';
+import 'scan_history_page.dart';
+
+import 'package:image/image.dart' as img;
+
+import 'dart:convert';
 
 class MoldScanKitScreen extends StatefulWidget {
   const MoldScanKitScreen({super.key});
@@ -40,7 +45,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
   CameraPose? _pose;
   BoardGeometry? _resultBoard;
   bool _scaleFromMarkers = false;
-  int _tab = 0; // 0 = digitalizar, 1 = biblioteca
+  int _tab = 0; // 0 = digitalizar, 1 = biblioteca, 2 = histórico
   bool _editing = false; // scan result open in the editor
   bool _picking = false; // manual calibration
   bool _showOriginal = false; // "antes" view of the result
@@ -204,6 +209,7 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _scaleFromMarkers = result.scaleFromMarkers;
         _processing = false;
       });
+      _recordScan(result.contourMm, result.previewPng);
     } on MoldScanException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -216,6 +222,42 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
         _error = 'Não foi possível processar a imagem. Tente outra foto.';
         _processing = false;
       });
+    }
+  }
+
+  /// Keeps every finished scan in the history (this device only), so a
+  /// measurement survives a reload or a closed tab.
+  void _recordScan(List<Point2D> contour, Uint8List? preview) {
+    var thumb = '';
+    if (preview != null) {
+      try {
+        final image = img.decodePng(preview);
+        if (image != null) {
+          thumb = base64Encode(
+            img.encodeJpg(img.copyResize(image, width: 320), quality: 70),
+          );
+        }
+      } catch (_) {}
+    }
+    final now = DateTime.now();
+    final name = _project.name.text.trim();
+    final ok = MoldStore.addToHistory(
+      ScanRecord(
+        id: now.microsecondsSinceEpoch.toString(),
+        date: now,
+        name: name.isEmpty ? 'Molde' : name,
+        outline: MoldOutline(_shown(contour)).normalized(),
+        thumbJpegBase64: thumb,
+      ),
+    );
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'O navegador não deixou guardar no histórico (janela privada?).',
+          ),
+        ),
+      );
     }
   }
 
@@ -324,23 +366,37 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                     const MoldTopBar(),
                     const SizedBox(height: 18),
                     SegmentedButton<int>(
-                      segments: const [
+                      // Three tabs must fit a 360 px phone: icons only on
+                      // wide screens.
+                      showSelectedIcon: false,
+                      segments: [
                         ButtonSegment(
                           value: 0,
-                          icon: Icon(Icons.photo_camera_outlined),
-                          label: Text('Digitalizar'),
+                          icon: wide
+                              ? const Icon(Icons.photo_camera_outlined)
+                              : null,
+                          label: const Text('Digitalizar'),
                         ),
                         ButtonSegment(
                           value: 1,
-                          icon: Icon(Icons.grid_view_rounded),
-                          label: Text('Biblioteca'),
+                          icon: wide
+                              ? const Icon(Icons.grid_view_rounded)
+                              : null,
+                          label: const Text('Biblioteca'),
+                        ),
+                        ButtonSegment(
+                          value: 2,
+                          icon: wide ? const Icon(Icons.history) : null,
+                          label: const Text('Histórico'),
                         ),
                       ],
                       selected: {_tab},
                       onSelectionChanged: (s) => setState(() => _tab = s.first),
                     ),
                     SizedBox(height: wide ? 32 : 22),
-                    if (_tab == 1)
+                    if (_tab == 2)
+                      const ScanHistoryPage()
+                    else if (_tab == 1)
                       MoldLibraryPage(
                         scanned: _contour == null
                             ? null
