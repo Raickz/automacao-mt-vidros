@@ -52,9 +52,8 @@ void _dump(String name, MoldOutline raw, MoldOutline reg) {
       .map((p) => '${p.x.toStringAsFixed(1)},${p.y.toStringAsFixed(1)}')
       .join(' ');
   final loose = raw.regularized(straightToleranceMm: 15);
-  File(
-    '$dir/$name.pts',
-  ).writeAsStringSync('${pts(raw)}\n${pts(reg)}\n${pts(loose)}\n');
+  File('$dir/$name.pts')
+      .writeAsStringSync('${pts(raw)}\n${pts(reg)}\n${pts(loose)}\n');
 }
 
 Future<MoldOutline> _run(String file, double spanX, double spanY) async {

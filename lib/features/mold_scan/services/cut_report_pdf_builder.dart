@@ -4,40 +4,11 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
+import 'cut_job.dart';
 import 'mold_outline.dart';
 import 'quote.dart';
 
-/// What goes on the report and on the label besides the outline.
-class CutJob {
-  final String name;
-  final String material;
-  final double? glassThicknessMm;
-  final String instructions;
-  final double marginMm;
-  final bool spline;
-  final Quote quote;
-  final DateTime date;
-
-  CutJob({
-    required this.name,
-    this.material = '',
-    this.glassThicknessMm,
-    this.instructions = '',
-    this.marginMm = 0,
-    this.spline = false,
-    this.quote = const Quote(),
-    DateTime? date,
-  }) : date = date ?? DateTime.now();
-
-  String get dateText =>
-      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} '
-      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-
-  /// Short id printed on the label and inside its QR code.
-  String get jobCode =>
-      'MT${date.year % 100}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}-'
-      '${date.hour.toString().padLeft(2, '0')}${date.minute.toString().padLeft(2, '0')}${date.second.toString().padLeft(2, '0')}';
-}
+export 'cut_job.dart';
 
 /// Cutting report (A4: drawing with dimensions + technical data + quote) and
 /// a 100 x 60 mm piece label with a QR code. Text is ASCII-safe for the
@@ -48,9 +19,11 @@ class CutReportPdfBuilder {
     MoldOutline outline,
     CutJob job, {
     Uint8List? logoPng,
-    pw.Font? font,
-    pw.Font? bold,
+    ByteData? regularTtf,
+    ByteData? boldTtf,
   }) async {
+    final font = regularTtf == null ? null : pw.Font.ttf(regularTtf);
+    final bold = boldTtf == null ? null : pw.Font.ttf(boldTtf);
     String t(String s) => font == null ? _a(s) : s;
     final theme = font == null
         ? null
@@ -215,9 +188,11 @@ class CutReportPdfBuilder {
   static Future<Uint8List> label(
     MoldOutline outline,
     CutJob job, {
-    pw.Font? font,
-    pw.Font? bold,
+    ByteData? regularTtf,
+    ByteData? boldTtf,
   }) async {
+    final font = regularTtf == null ? null : pw.Font.ttf(regularTtf);
+    final bold = boldTtf == null ? null : pw.Font.ttf(boldTtf);
     String t(String s) => font == null ? _a(s) : s;
     final theme = font == null
         ? null
