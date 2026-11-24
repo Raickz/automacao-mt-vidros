@@ -232,7 +232,7 @@ class _MoldEditorState extends State<MoldEditor> {
   // Glass is cut with straight edges and smooth curves: on by default for
   // traced photos, whose outline has small jogs and waves.
   late bool _regular = widget.fromScan;
-  double _straightTol = 4;
+  double _straightTol = 5;
   bool _simplify = false;
   bool _grid = false;
   bool _measuring = false;
@@ -666,7 +666,7 @@ class _MoldEditorState extends State<MoldEditor> {
                   _base = widget.original();
                   _spline = _smooth = _simplify = false;
                   _regular = widget.fromScan;
-                  _straightTol = 4;
+                  _straightTol = 5;
                   _margin.text = '0';
                   _measure = const [];
                   _resetSize();

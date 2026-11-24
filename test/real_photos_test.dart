@@ -51,7 +51,10 @@ void _dump(String name, MoldOutline raw, MoldOutline reg) {
   String pts(MoldOutline o) => o.points
       .map((p) => '${p.x.toStringAsFixed(1)},${p.y.toStringAsFixed(1)}')
       .join(' ');
-  File('$dir/$name.pts').writeAsStringSync('${pts(raw)}\n${pts(reg)}\n');
+  final loose = raw.regularized(straightToleranceMm: 15);
+  File(
+    '$dir/$name.pts',
+  ).writeAsStringSync('${pts(raw)}\n${pts(reg)}\n${pts(loose)}\n');
 }
 
 Future<MoldOutline> _run(String file, double spanX, double spanY) async {
@@ -64,6 +67,22 @@ Future<MoldOutline> _run(String file, double spanX, double spanY) async {
     '  $file: ${o.width.toStringAsFixed(1)} x ${o.height.toStringAsFixed(1)} mm',
   );
   return o;
+}
+
+/// Vertices where the outline bends by 5° to 35°: the small kinks a glass
+/// edge must not have (below is a smooth curve, above a real corner).
+int kinks(MoldOutline o) {
+  final p = o.points, n = p.length;
+  var count = 0;
+  for (var i = 0; i < n; i++) {
+    final a = p[(i - 1 + n) % n], b = p[i], c = p[(i + 1) % n];
+    final v1x = b.x - a.x, v1y = b.y - a.y, v2x = c.x - b.x, v2y = c.y - b.y;
+    final d = sqrt(v1x * v1x + v1y * v1y) * sqrt(v2x * v2x + v2y * v2y);
+    if (d == 0) continue;
+    final ang = acos(((v1x * v2x + v1y * v2y) / d).clamp(-1.0, 1.0)) * 180 / pi;
+    if (ang > 5 && ang < 35) count++;
+  }
+  return count;
 }
 
 void main() {
@@ -90,11 +109,7 @@ void main() {
       reason: 'regularizar não muda a medida',
     );
     expect(r.height, closeTo(o.height, 3));
-    expect(
-      r.points.length,
-      lessThan(120),
-      reason: 'retas e uma curva, sem serrilhado',
-    );
+    expect(kinks(r), 0, reason: 'retas e curvas lisas, sem quebrinhas');
   }, timeout: timeout);
 
   test('papelão 70 x 25 cm na parede (trena: 197,4 cm de fora a fora)', () async {
@@ -108,6 +123,7 @@ void main() {
       '  regularizado: ${r.points.length} pontos, ${r.width.toStringAsFixed(1)} x ${r.height.toStringAsFixed(1)}',
     );
     expect(r.width, closeTo(o.width, 4));
+    expect(kinks(r), 0, reason: 'sem quebrinhas');
   }, timeout: timeout);
 
   for (final file in ['tabua_encostada.jpg', 'tabua_calco.jpg']) {

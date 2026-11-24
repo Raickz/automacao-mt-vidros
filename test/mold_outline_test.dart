@@ -10,6 +10,22 @@ import 'package:mt_vidros_app/features/mold_scan/services/svg_writer.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/cut_report_pdf_builder.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/quote.dart';
 
+/// Vertices where the outline bends by 5° to 35°: the small kinks a glass
+/// edge must not have (below is a smooth curve, above a real corner).
+int kinks(MoldOutline o) {
+  final p = o.points, n = p.length;
+  var count = 0;
+  for (var i = 0; i < n; i++) {
+    final a = p[(i - 1 + n) % n], b = p[i], c = p[(i + 1) % n];
+    final v1x = b.x - a.x, v1y = b.y - a.y, v2x = c.x - b.x, v2y = c.y - b.y;
+    final d = sqrt(v1x * v1x + v1y * v1y) * sqrt(v2x * v2x + v2y * v2y);
+    if (d == 0) continue;
+    final ang = acos(((v1x * v2x + v1y * v2y) / d).clamp(-1.0, 1.0)) * 180 / pi;
+    if (ang > 5 && ang < 35) count++;
+  }
+  return count;
+}
+
 void main() {
   test('every catalog shape is a valid closed outline at its default size', () {
     expect(MoldCatalog.all.length, greaterThanOrEqualTo(40));
@@ -183,6 +199,7 @@ void main() {
       ]);
       final r = noisy.regularized();
       expect(r.points.length, greaterThan(40));
+      expect(kinks(r), 0, reason: 'curva lisa');
       expect(r.width, closeTo(600, 2));
       expect(r.height, closeTo(600, 2));
     });
@@ -206,7 +223,7 @@ void main() {
       expect(r.width, closeTo(610, 1.5));
       expect(r.height, closeTo(500, 1.5));
       expect(r.points.length, greaterThan(8), reason: 'a curva continua curva');
-      expect(r.points.length, lessThan(200));
+      expect(kinks(r), 0, reason: 'sem quebrinhas');
     });
   });
 }

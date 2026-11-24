@@ -4,8 +4,10 @@ import 'package:web/web.dart' as web;
 
 import 'mold_outline.dart';
 import 'saved_mold_codec.dart';
+import 'scan_history_codec.dart';
 
 export 'saved_mold_codec.dart' show SavedMold;
+export 'scan_history_codec.dart' show ScanRecord;
 
 /// Saved molds live only in this browser on this device: clearing site data
 /// or using another phone starts empty. Every access is guarded, since
@@ -16,6 +18,7 @@ class MoldStore {
   static const _priceKey = 'mt_prices_v1';
   // v2: distances measured from the outer edges of the black squares.
   static const _spanKey = 'mt_marker_spans_v2';
+  static const _historyKey = 'mt_scan_history_v1';
 
   // Unreadable saved-mold data is copied here before anything overwrites it,
   // so a corrupted list can still be recovered by hand.
@@ -116,4 +119,47 @@ class MoldStore {
       web.window.localStorage.setItem(_spanKey, jsonEncode({'x': x, 'y': y}));
     } catch (_) {}
   }
+
+  /// Every finished scan, newest first (at most
+  /// [ScanHistoryCodec.maxRecords]).
+  static List<ScanRecord> history() {
+    try {
+      final raw = web.window.localStorage.getItem(_historyKey);
+      if (raw == null) return [];
+      return ScanHistoryCodec.decode(raw) ?? [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static bool _writeHistory(List<ScanRecord> records) {
+    // The browser gives a few MB per site: when full, drop the oldest scans
+    // until it fits.
+    var list = records.take(ScanHistoryCodec.maxRecords).toList();
+    while (list.isNotEmpty) {
+      try {
+        web.window.localStorage.setItem(
+          _historyKey,
+          ScanHistoryCodec.encode(list),
+        );
+        return true;
+      } catch (_) {
+        if (list.length == 1) return false;
+        list = list.sublist(0, list.length - 1);
+      }
+    }
+    try {
+      web.window.localStorage.removeItem(_historyKey);
+    } catch (_) {}
+    return true;
+  }
+
+  /// Returns false when the browser refused to store it.
+  static bool addToHistory(ScanRecord record) =>
+      _writeHistory([record, ...history()]);
+
+  static bool removeFromHistory(String id) =>
+      _writeHistory(history().where((r) => r.id != id).toList());
+
+  static bool clearHistory() => _writeHistory(const []);
 }

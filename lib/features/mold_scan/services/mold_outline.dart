@@ -243,7 +243,7 @@ class MoldOutline {
   MoldOutline regularized({
     double cornerDegrees = 35,
     double spanMm = 15,
-    double straightToleranceMm = 4,
+    double straightToleranceMm = 5,
     double smoothMm = 12,
   }) {
     final dense = resampled().points;
@@ -297,9 +297,29 @@ class MoldOutline {
       return out;
     }
 
+    // Curves are fitted with cubic Béziers (as CAD draws them), loose
+    // enough to ride over the photo's waves: one smooth curve per stretch,
+    // split only where the shape really turns twice, and always joined
+    // without a kink.
+    final fitTol = max(2.0, straightToleranceMm * 0.5);
+
     if (corners.isEmpty) {
-      return MoldOutline(smoothRun(dense, closed: true))
-          .simplified(toleranceMm: 0.2);
+      // A closed curve (circle, oval, blob): four stretches whose joins
+      // share their tangent.
+      final sm = smoothRun(dense, closed: true);
+      final m = sm.length;
+      Point2D tangentAt(int i) => _unit(sm[(i + 3) % m], sm[(i - 3 + m) % m]);
+      final out = <Point2D>[];
+      for (var q = 0; q < 4; q++) {
+        final from = q * m ~/ 4, to = (q + 1) * m ~/ 4;
+        final run = [for (var i = from; i <= to; i++) sm[i % m]];
+        final t1 = tangentAt(from), t2 = tangentAt(to % m);
+        final curve = _sampleBeziers(
+          _fitCubic(run, t1, Point2D(-t2.x, -t2.y), fitTol),
+        );
+        out.addAll(curve.sublist(0, curve.length - 1));
+      }
+      return MoldOutline(out);
     }
 
     // Runs between consecutive corners, and a straight-line fit for each.
@@ -322,11 +342,7 @@ class MoldOutline {
                   len;
         maxDev = max(maxDev, dev);
       }
-      // A long edge may wave a little more and still be meant straight
-      // (frayed cardboard, a sagging edge): a real curve bows far more.
-      if (len == 0 ||
-          maxDev >
-              max(straightToleranceMm, len * straightToleranceMm * 0.003)) {
+      if (len == 0 || maxDev > straightToleranceMm) {
         lines.add(null);
         continue;
       }
@@ -417,10 +433,190 @@ class MoldOutline {
       final run = [...runs[c]];
       run[0] = cornerPts[c];
       run[run.length - 1] = cornerPts[(c + 1) % runs.length];
-      final curve = MoldOutline(smoothRun(run, closed: false)).points;
-      final simple = PolylineSimplifier.simplify(curve, 0.2);
-      out.addAll(simple.sublist(1, simple.length - 1));
+      final sm = smoothRun(run, closed: false);
+      final k = min(5, sm.length - 1);
+      final curve = _sampleBeziers(
+        _fitCubic(
+          sm,
+          _unit(sm[k], sm[0]),
+          _unit(sm[sm.length - 1 - k], sm.last),
+          fitTol,
+        ),
+      );
+      out.addAll(curve.sublist(1, curve.length - 1));
     }
     return out.length < 3 ? this : MoldOutline(out);
   }
+}
+
+Point2D _unit(Point2D to, Point2D from) {
+  final dx = to.x - from.x, dy = to.y - from.y;
+  final l = sqrt(dx * dx + dy * dy);
+  return l == 0 ? const Point2D(1, 0) : Point2D(dx / l, dy / l);
+}
+
+/// Points along the Béziers, about every 2 mm, ends included.
+List<Point2D> _sampleBeziers(List<List<Point2D>> beziers) {
+  final out = <Point2D>[];
+  for (var b = 0; b < beziers.length; b++) {
+    final c = beziers[b];
+    var len = 0.0;
+    for (var i = 0; i < 3; i++) {
+      len += sqrt(pow(c[i + 1].x - c[i].x, 2) + pow(c[i + 1].y - c[i].y, 2));
+    }
+    final steps = max(4, (len / 2).ceil());
+    for (var s = b == 0 ? 0 : 1; s <= steps; s++) {
+      out.add(_bezierAt(c, s / steps));
+    }
+  }
+  return out;
+}
+
+Point2D _bezierAt(List<Point2D> c, double t) {
+  final u = 1 - t;
+  final b0 = u * u * u, b1 = 3 * u * u * t, b2 = 3 * u * t * t, b3 = t * t * t;
+  return Point2D(
+    b0 * c[0].x + b1 * c[1].x + b2 * c[2].x + b3 * c[3].x,
+    b0 * c[0].y + b1 * c[1].y + b2 * c[2].y + b3 * c[3].y,
+  );
+}
+
+/// Least-squares cubic Bézier fitting with recursive splitting (Schneider,
+/// "An algorithm for automatically fitting digitized curves", Graphics
+/// Gems, 1990). [t1] is the unit tangent leaving the first point, [t2] the
+/// one leaving the last point backwards. Max distance from the points to
+/// the curve stays under [tol].
+List<List<Point2D>> _fitCubic(
+  List<Point2D> d,
+  Point2D t1,
+  Point2D t2,
+  double tol, [
+  int depth = 0,
+]) {
+  final n = d.length;
+  double dist(Point2D a, Point2D b) =>
+      sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
+  if (n == 2) {
+    final l = dist(d[0], d[1]) / 3;
+    return [
+      [
+        d[0],
+        Point2D(d[0].x + t1.x * l, d[0].y + t1.y * l),
+        Point2D(d[1].x + t2.x * l, d[1].y + t2.y * l),
+        d[1],
+      ],
+    ];
+  }
+
+  // Chord-length parameters.
+  var u = List<double>.filled(n, 0);
+  for (var i = 1; i < n; i++) {
+    u[i] = u[i - 1] + dist(d[i], d[i - 1]);
+  }
+  final total = u[n - 1];
+  if (total == 0) return [];
+  u = [for (final v in u) v / total];
+
+  List<Point2D> generate(List<double> u) {
+    var c00 = 0.0, c01 = 0.0, c11 = 0.0, x0 = 0.0, x1 = 0.0;
+    final p0 = d.first, p3 = d.last;
+    for (var i = 0; i < n; i++) {
+      final t = u[i], s = 1 - t;
+      final b0 = s * s * s,
+          b1 = 3 * s * s * t,
+          b2 = 3 * s * t * t,
+          b3 = t * t * t;
+      final a1 = Point2D(t1.x * b1, t1.y * b1),
+          a2 = Point2D(t2.x * b2, t2.y * b2);
+      c00 += a1.x * a1.x + a1.y * a1.y;
+      c01 += a1.x * a2.x + a1.y * a2.y;
+      c11 += a2.x * a2.x + a2.y * a2.y;
+      final tx = d[i].x - (p0.x * (b0 + b1) + p3.x * (b2 + b3));
+      final ty = d[i].y - (p0.y * (b0 + b1) + p3.y * (b2 + b3));
+      x0 += a1.x * tx + a1.y * ty;
+      x1 += a2.x * tx + a2.y * ty;
+    }
+    final det = c00 * c11 - c01 * c01;
+    var al = det.abs() < 1e-12 ? 0.0 : (x0 * c11 - x1 * c01) / det;
+    var ar = det.abs() < 1e-12 ? 0.0 : (c00 * x1 - c01 * x0) / det;
+    final seg = dist(p0, p3);
+    if (al < seg * 1e-3 || ar < seg * 1e-3) al = ar = seg / 3;
+    return [
+      p0,
+      Point2D(p0.x + t1.x * al, p0.y + t1.y * al),
+      Point2D(p3.x + t2.x * ar, p3.y + t2.y * ar),
+      p3,
+    ];
+  }
+
+  (double, int) maxError(List<Point2D> c, List<double> u) {
+    var worst = 0.0, at = n ~/ 2;
+    for (var i = 1; i < n - 1; i++) {
+      final e = dist(_bezierAt(c, u[i]), d[i]);
+      if (e > worst) {
+        worst = e;
+        at = i;
+      }
+    }
+    return (worst, at);
+  }
+
+  // Newton step: move each parameter to the closest point of the curve.
+  List<double> reparam(List<Point2D> c, List<double> u) => [
+    for (var i = 0; i < n; i++)
+      () {
+        final t = u[i], s = 1 - t;
+        final q = _bezierAt(c, t);
+        final q1 = Point2D(
+          3 *
+              (s * s * (c[1].x - c[0].x) +
+                  2 * s * t * (c[2].x - c[1].x) +
+                  t * t * (c[3].x - c[2].x)),
+          3 *
+              (s * s * (c[1].y - c[0].y) +
+                  2 * s * t * (c[2].y - c[1].y) +
+                  t * t * (c[3].y - c[2].y)),
+        );
+        final q2 = Point2D(
+          6 *
+              (s * (c[2].x - 2 * c[1].x + c[0].x) +
+                  t * (c[3].x - 2 * c[2].x + c[1].x)),
+          6 *
+              (s * (c[2].y - 2 * c[1].y + c[0].y) +
+                  t * (c[3].y - 2 * c[2].y + c[1].y)),
+        );
+        final num = (q.x - d[i].x) * q1.x + (q.y - d[i].y) * q1.y;
+        final den =
+            q1.x * q1.x +
+            q1.y * q1.y +
+            (q.x - d[i].x) * q2.x +
+            (q.y - d[i].y) * q2.y;
+        return den == 0 ? t : (t - num / den).clamp(0.0, 1.0);
+      }(),
+  ];
+
+  var c = generate(u);
+  var (err, split) = maxError(c, u);
+  if (err < tol) return [c];
+  if (err < tol * 4) {
+    for (var it = 0; it < 6; it++) {
+      u = reparam(c, u);
+      c = generate(u);
+      (err, split) = maxError(c, u);
+      if (err < tol) return [c];
+    }
+  }
+  if (depth > 12 || n < 6) return [c];
+  split = split.clamp(2, n - 3);
+  final center = _unit(d[split - 1], d[split + 1]);
+  return [
+    ..._fitCubic(d.sublist(0, split + 1), t1, center, tol, depth + 1),
+    ..._fitCubic(
+      d.sublist(split),
+      Point2D(-center.x, -center.y),
+      t2,
+      tol,
+      depth + 1,
+    ),
+  ];
 }
