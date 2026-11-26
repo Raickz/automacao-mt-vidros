@@ -36,6 +36,7 @@ class ScanHistoryCodec {
   static const maxSizeMm = 10000.0;
   static const maxThumbChars = 200000;
   static const maxTextLength = 300;
+  static const _maxEpochMs = 8640000000000000;
 
   static List<ScanRecord>? decode(String raw) {
     final Object? json;
@@ -60,7 +61,9 @@ class ScanHistoryCodec {
     if (e is! Map) return null;
     final id = e['id'], ms = e['date'], pts = e['pts'], thumb = e['thumb'];
     if (id is! String || id.isEmpty || id.length > 64) return null;
-    if (ms is! int || pts is! List) return null;
+    // DateTime throws beyond +-8.64e15 ms: one such record used to make the
+    // whole history unreadable, and the next scan then overwrote it.
+    if (ms is! int || ms.abs() > _maxEpochMs || pts is! List) return null;
     if (pts.length < 3 || pts.length > maxPoints) return null;
     final points = <Point2D>[];
     for (final p in pts) {
