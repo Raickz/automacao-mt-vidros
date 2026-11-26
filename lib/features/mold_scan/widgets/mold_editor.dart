@@ -240,6 +240,11 @@ class _MoldEditorState extends State<MoldEditor> {
   bool _measuring = false;
   List<Point2D> _measure = const [];
   double _ratio = 1; // height / width when the lock was set
+  // True once the worker typed a size: from then on the edge options keep
+  // it; until then the size follows the styled outline (see [_styled]).
+  bool _sizeTyped = false;
+  (MoldOutline, bool, double, bool, bool)? _styledKey;
+  MoldOutline? _styledCache;
   bool _busy = false;
 
   @override
@@ -271,10 +276,30 @@ class _MoldEditorState extends State<MoldEditor> {
     super.dispose();
   }
 
+  /// [_base] with the edge options applied, at its own measured size
+  /// (cached: regularizing takes a while and the page rebuilds often).
+  MoldOutline get _styled {
+    final key = (_base, _regular, _straightTol, _smooth, _simplify);
+    if (_styledCache == null || _styledKey != key) {
+      _styledKey = key;
+      _styledCache = _base.styled(
+        regular: _regular,
+        straightToleranceMm: _straightTol,
+        smooth: _smooth,
+        simplify: _simplify,
+      );
+    }
+    return _styledCache!;
+  }
+
+  /// The starting size is the styled outline's own: with straight edges on,
+  /// the fitted lines, not the outermost pixel steps of the photo.
   void _resetSize() {
-    _w.text = _fmt(_base.width);
-    _h.text = _fmt(_base.height);
-    _ratio = _base.height / _base.width;
+    final o = _styled;
+    _w.text = _fmt(o.width);
+    _h.text = _fmt(o.height);
+    _ratio = o.height / o.width;
+    _sizeTyped = false;
   }
 
   static String _fmt(double v) =>
@@ -298,11 +323,7 @@ class _MoldEditorState extends State<MoldEditor> {
     }
     final m = _marginMm;
     if (m.abs() > min(w, h) / 4) return null;
-    var o = _base;
-    if (_regular) o = o.regularized(straightToleranceMm: _straightTol);
-    if (_smooth) o = o.smoothed();
-    if (_simplify) o = o.simplified();
-    o = o.resized(w, h);
+    var o = _styled.resized(w, h);
     if (_spline) o = o.splined();
     if (m != 0) o = o.offset(m).normalized();
     return o;
@@ -311,12 +332,14 @@ class _MoldEditorState extends State<MoldEditor> {
   void _changed() => setState(() => _measure = const []);
 
   void _onW(String _) {
+    _sizeTyped = true;
     final w = _num(_w);
     if (_lock && w != null) _h.text = _fmt(w * _ratio);
     _changed();
   }
 
   void _onH(String _) {
+    _sizeTyped = true;
     final h = _num(_h);
     if (_lock && h != null && _ratio > 0) _w.text = _fmt(h / _ratio);
     _changed();
@@ -328,7 +351,9 @@ class _MoldEditorState extends State<MoldEditor> {
       _base = f(_base);
       _measure = const [];
       // A quarter turn swaps the typed width and height.
-      if (swaps && w != null && h != null) {
+      if (!_sizeTyped) {
+        _resetSize();
+      } else if (swaps && w != null && h != null) {
         _w.text = _fmt(h);
         _h.text = _fmt(w);
       }
@@ -700,7 +725,7 @@ class _MoldEditorState extends State<MoldEditor> {
             title: const Text('Bordas retas e curvas (como o vidro)'),
             subtitle: const Text(
               'Troca as ondinhas e degraus da foto por retas e curvas lisas, com cantos certos. '
-              'A medida não muda.',
+              'A medida passa a ser a das retas ajustadas, sem os degraus da foto.',
             ),
           ),
           if (_regular) ...[
@@ -737,7 +762,7 @@ class _MoldEditorState extends State<MoldEditor> {
               onChanged: (v) => _changedWith(() => _smooth = v),
               title: const Text('Suavizar contorno'),
               subtitle: const Text(
-                'Tira os pequenos degraus da foto, sem mudar a medida.',
+                'Tira os pequenos degraus da foto (a medida acompanha).',
               ),
             ),
             SwitchListTile(
@@ -975,9 +1000,12 @@ class _MoldEditorState extends State<MoldEditor> {
     );
   }
 
+  /// An edge option changed: unless the worker typed a size, the size
+  /// follows the new outline (straight edges measure the fitted lines).
   void _changedWith(VoidCallback f) => setState(() {
     f();
     _measure = const [];
+    if (!_sizeTyped) _resetSize();
   });
 
   void _savePrices() {

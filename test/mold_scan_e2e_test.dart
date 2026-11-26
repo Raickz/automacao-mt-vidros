@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_corner.dart';
 import 'package:mt_vidros_app/features/mold_scan/models/board_geometry.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/mold_outline.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/mold_scan_pipeline.dart';
 
 import 'support/synthetic_scene.dart';
@@ -54,6 +55,28 @@ void expectMold(
 
 void main() {
   const timeout = Timeout(Duration(minutes: 4));
+
+  test('bordas retas: a medida das retas ajustadas fica a 1 mm do real (o contorno bruto sai ~2 mm maior)', () async {
+    const rect = [
+      Point2D(750, 450),
+      Point2D(1750, 450),
+      Point2D(1750, 1050),
+      Point2D(750, 1050),
+    ];
+    final bytes = scene.renderJpg(
+      const SceneConfig(moldPolygonMm: rect, noiseSigma: 3),
+    );
+    final raw = MoldOutline(await runPipeline(bytes));
+    final styled = raw.styled(regular: true);
+    print(
+      '  bruto ${raw.width.toStringAsFixed(1)} x ${raw.height.toStringAsFixed(1)}, '
+      'retas ${styled.width.toStringAsFixed(1)} x ${styled.height.toStringAsFixed(1)} (real 1000 x 600)',
+    );
+    // What the editor now starts from (it used to stretch the straight
+    // edges back to the raw box).
+    expect(styled.width, closeTo(1000, 1));
+    expect(styled.height, closeTo(600, 1));
+  }, timeout: timeout);
 
   test('cenário base: marcadores recortados, luz uniforme', () async {
     final bytes = scene.renderJpg(
