@@ -54,4 +54,16 @@ void main() {
       ScanHistoryCodec.maxRecords,
     );
   });
+
+  test('data fora do intervalo pula só aquele registro (antes perdia o histórico inteiro)', () {
+    final raw = ScanHistoryCodec.encode([_rec('1'), _rec('2')]);
+    // DateTime aceita no máximo 8,64e15 ms; acima disso lança RangeError.
+    final bad = raw.replaceFirst(
+      RegExp(r'"date":\d+'),
+      '"date":99999999999999999',
+    );
+    final back = ScanHistoryCodec.decode(bad);
+    expect(back, isNotNull);
+    expect(back!.map((r) => r.id), ['2']);
+  });
 }

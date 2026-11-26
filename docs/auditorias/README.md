@@ -11,12 +11,11 @@ Consolidado de todas as auditorias. Atualize ao abrir ou fechar um item.
 
 | Desde | Gravidade | Item | Onde |
 |---|---|---|---|
-| 2026-11-24 | Média | O pipeline roda na thread da interface: com a foto de 3200 px a tela congela ~1-3 s em celulares fracos. Avaliar Web Worker (o pipeline é Dart puro). | `services/mold_scan_service_web.dart` |
-| 2026-11-24 | Baixa | Sem Content-Security-Policy (o GitHub Pages não deixa mandar cabeçalhos; seria por `<meta>`). Precisa de teste no navegador antes: o Flutter usa WebAssembly, `blob:` nos downloads e estilos inline. | `web/index.html` |
-| 2026-11-24 | Baixa | Dependências desatualizadas (`image` 4.10.1 → 4.13.1, `web` 1.1.1 → 1.1.2, `image_picker` 1.2.3 → 1.2.4). Não foi possível consultar osv.dev (bloqueado pela rede da rotina). | `pubspec.yaml` |
-| 2026-11-24 | Baixa | Quando faltar um glifo (emoji no nome do projeto), o PDF busca fonte de reserva em `fonts.gstatic.com`. Só acontece nesse caso; o resto do site não chama terceiros. | `cut_report_pdf_builder.dart` |
-| 2026-11-24 | Processo | Duas execuções da rotina rodaram em paralelo no mesmo dia e duplicaram o trabalho. Cada execução deve conferir no início se já há branch `auditoria/<data>` ou PR aberto e partir dele. | rotina agendada |
-| 2026-11-24 | Informativo | DXF ainda não aberto no software de CAM da loja; distorção da lente não corrigida (já citado no README do projeto). | — |
+| 2026-11-26 | Baixa (precisão) | O contorno bruto (tela de resultado e "Baixar DXF" direto) sai ~1 mm maior por lado por causa dos degraus de pixel. O editor já usa as retas ajustadas. Falta decidir se o DXF direto passa a usá-las também. | `services/contour_extractor.dart`, `screens/mold_scan_kit_screen_web.dart` |
+| 2026-11-26 | Informativo | O `image_picker` redimensiona e recomprime a foto no navegador antes da checagem de 64 MP do app. Trocar só com teste em navegador (orientação da calibração manual). | `screens/mold_scan_kit_screen_web.dart` |
+| 2026-11-24 | Média | O pipeline roda na thread da interface: a tela congela ~1-3 s em celular fraco (já ficou 2-2,6x mais rápido no #5). Avaliar Web Worker (o pipeline é Dart puro). | `services/mold_scan_service_web.dart` |
+| 2026-11-24 | Processo | Conferir no início de cada execução se já existe branch `auditoria/<data>` ou PR aberto, e partir dele (feito em 2026-11-26). | rotina agendada |
+| 2026-11-24 | Informativo | osv.dev bloqueado pela rede da rotina; DXF ainda não aberto no software de CAM da loja; distorção da lente não corrigida (já citado no README do projeto). | — |
 
 ## Execuções
 
@@ -24,3 +23,5 @@ Consolidado de todas as auditorias. Atualize ao abrir ou fechar um item.
   registro corrompido, fotos 16 bits/cinza, limite de dimensões da foto, NaN nos campos numéricos.
   Segunda execução no mesmo dia: espessura digitada errada não encolhe mais o molde em silêncio; PNG/WebP
   animado e formatos que celular não produz recusados.
+- [2026-11-26](2026-11-26.md) — editor não estica mais as retas ajustadas de volta aos degraus da foto
+  (a peça saía 1-3 mm maior); histórico à prova de data inválida; orçamento não derruba o editor.

@@ -228,6 +228,25 @@ class MoldOutline {
     return out.length < 3 ? this : MoldOutline(out);
   }
 
+  /// The editor's edge options, applied in this order, before the outline
+  /// is brought to its final size. The starting size must be taken from this
+  /// result, not from the raw outline: a traced edge zigzags by about a pixel
+  /// and its bounding box is set by the outermost zigzags (and by any burr),
+  /// so stretching the straightened outline back to the raw box made the
+  /// whole piece 1-3 mm bigger.
+  MoldOutline styled({
+    bool regular = false,
+    double straightToleranceMm = 5,
+    bool smooth = false,
+    bool simplify = false,
+  }) {
+    var o = this;
+    if (regular) o = o.regularized(straightToleranceMm: straightToleranceMm);
+    if (smooth) o = o.smoothed();
+    if (simplify) o = o.simplified();
+    return o;
+  }
+
   /// Rebuilds the outline as glass is cut: straight edges and smooth
   /// curves, meeting at clean corners. A traced photo has small jogs and
   /// waves (a pixel step, a frayed cardboard edge) that the cutting table

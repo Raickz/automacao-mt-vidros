@@ -19,6 +19,7 @@ class MoldStore {
   // v2: distances measured from the outer edges of the black squares.
   static const _spanKey = 'mt_marker_spans_v2';
   static const _historyKey = 'mt_scan_history_v1';
+  static const _historyBackupKey = 'mt_scan_history_v1_unreadable';
 
   // Unreadable saved-mold data is copied here before anything overwrites it,
   // so a corrupted list can still be recovered by hand.
@@ -136,6 +137,15 @@ class MoldStore {
     // The browser gives a few MB per site: when full, drop the oldest scans
     // until it fits.
     var list = records.take(ScanHistoryCodec.maxRecords).toList();
+    // Unreadable history is kept aside before being overwritten, as with
+    // the saved molds.
+    try {
+      final storage = web.window.localStorage;
+      final old = storage.getItem(_historyKey);
+      if (old != null && ScanHistoryCodec.decode(old) == null) {
+        storage.setItem(_historyBackupKey, old);
+      }
+    } catch (_) {}
     while (list.isNotEmpty) {
       try {
         web.window.localStorage.setItem(

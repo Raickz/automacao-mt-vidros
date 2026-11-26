@@ -96,6 +96,15 @@ void main() {
     expect(Quote.brl(1234.5), 'R\$ 1.234,50');
     expect(Quote.brl(0.07), 'R\$ 0,07');
     expect(Quote.brl(1000000), 'R\$ 1.000.000,00');
+    // Auditoria 2026-11-26: valores que antes quebravam a tela ou o texto.
+    expect(Quote.brl(-150.5), '-R\$ 150,50');
+    expect(Quote.brl(double.infinity), 'R\$ —');
+    expect(Quote.brl(1e300), 'R\$ —');
+    expect(Quote.unitPrice(1e308), 0, reason: 'preço absurdo não vale');
+    expect(Quote.unitPrice(-10), 0);
+    expect(Quote.unitPrice(double.nan), 0);
+    expect(Quote.unitPrice(null), 0);
+    expect(Quote.unitPrice(180), 180);
   });
 
   test('cut report and label are valid PDFs, accents included', () async {
@@ -224,6 +233,53 @@ void main() {
       expect(r.height, closeTo(500, 1.5));
       expect(r.points.length, greaterThan(8), reason: 'a curva continua curva');
       expect(kinks(r), 0, reason: 'sem quebrinhas');
+    });
+  });
+
+  group('medida inicial do editor (auditoria 2026-11-26)', () {
+    // A traced edge: points every mm, each one 0 or 1 mm outside the true
+    // line (the pixel steps of the mask), plus a 3 mm burr of fiber on the
+    // right edge.
+    MoldOutline tracedRect(double w, double h, {bool burr = true}) {
+      final rng = Random(7);
+      double jag() => rng.nextBool() ? 1.0 : 0.0;
+      final pts = <Point2D>[];
+      for (var x = 0.0; x < w; x++) {
+        pts.add(Point2D(x, -jag()));
+      }
+      for (var y = 0.0; y < h; y++) {
+        final bump = burr && y > 290 && y < 310 ? 3.0 : 0.0;
+        pts.add(Point2D(w + max(jag(), bump), y));
+      }
+      for (var x = w; x > 0; x--) {
+        pts.add(Point2D(x, h + jag()));
+      }
+      for (var y = h; y > 0; y--) {
+        pts.add(Point2D(-jag(), y));
+      }
+      return MoldOutline(pts);
+    }
+
+    test(
+      'com bordas retas, a medida é a das retas ajustadas, não a dos degraus',
+      () {
+        final raw = tracedRect(1000, 600);
+        // The raw box is set by the outermost steps and the burr.
+        expect(raw.width, closeTo(1004, 0.01));
+        expect(raw.height, closeTo(602, 0.01));
+        final styled = raw.styled(regular: true);
+        // The fitted lines run through the middle of the steps (+0,5 mm a
+        // side) and ignore the burr. Before the fix the editor stretched this
+        // outline back to the raw 1004 x 602 box.
+        expect(styled.width, closeTo(1001, 1));
+        expect(styled.height, closeTo(601, 0.6));
+        expect(styled.points.length, 4, reason: 'retângulo vira 4 cantos');
+      },
+    );
+
+    test('sem opções, o contorno sai igual', () {
+      final raw = tracedRect(400, 300, burr: false);
+      expect(identical(raw.styled(), raw), isTrue);
     });
   });
 }
