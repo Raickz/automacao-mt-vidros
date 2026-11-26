@@ -310,8 +310,8 @@ class _MoldEditorState extends State<MoldEditor> {
   double get _marginMm => _num(_margin) ?? 0;
 
   Quote get _quote => Quote(
-    pricePerM2: _num(_priceM2) ?? 0,
-    pricePerMeter: _num(_priceM) ?? 0,
+    pricePerM2: Quote.unitPrice(_num(_priceM2)),
+    pricePerMeter: Quote.unitPrice(_num(_priceM)),
     quantity: (int.tryParse(_qty.text.trim()) ?? 1).clamp(1, 9999),
   );
 

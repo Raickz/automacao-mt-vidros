@@ -19,8 +19,22 @@ class Quote {
   double edge(MoldOutline o) => edgeMeters(o) * pricePerMeter * quantity;
   double total(MoldOutline o) => glass(o) + edge(o);
 
-  /// 1234.5 -> "R$ 1.234,50"
+  /// Largest price per unit accepted from the form; above it (or negative,
+  /// or not a number) the price counts as not given.
+  static const maxUnitPrice = 1e6;
+
+  /// [typed] as a usable unit price: 0 when missing, negative, absurd.
+  static double unitPrice(double? typed) =>
+      typed == null || !typed.isFinite || typed < 0 || typed > maxUnitPrice
+      ? 0
+      : typed;
+
+  /// 1234.5 -> "R$ 1.234,50"; -2 -> "-R$ 2,00". A value that is not a
+  /// number, or beyond R$ 1 trillion, shows as "R$ —" instead of throwing
+  /// (the editor page would stop drawing).
   static String brl(double v) {
+    if (!v.isFinite || v.abs() >= 1e12) return 'R\$ —';
+    if (v < 0) return '-${brl(-v)}';
     final cents = (v * 100).round();
     final reais = (cents ~/ 100).toString();
     final buf = StringBuffer();

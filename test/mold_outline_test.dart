@@ -96,6 +96,15 @@ void main() {
     expect(Quote.brl(1234.5), 'R\$ 1.234,50');
     expect(Quote.brl(0.07), 'R\$ 0,07');
     expect(Quote.brl(1000000), 'R\$ 1.000.000,00');
+    // Auditoria 2026-11-26: valores que antes quebravam a tela ou o texto.
+    expect(Quote.brl(-150.5), '-R\$ 150,50');
+    expect(Quote.brl(double.infinity), 'R\$ —');
+    expect(Quote.brl(1e300), 'R\$ —');
+    expect(Quote.unitPrice(1e308), 0, reason: 'preço absurdo não vale');
+    expect(Quote.unitPrice(-10), 0);
+    expect(Quote.unitPrice(double.nan), 0);
+    expect(Quote.unitPrice(null), 0);
+    expect(Quote.unitPrice(180), 180);
   });
 
   test('cut report and label are valid PDFs, accents included', () async {
