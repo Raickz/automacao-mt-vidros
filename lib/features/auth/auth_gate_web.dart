@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:web/web.dart' as web;
 
 import '../mold_scan/theme/mold_scan_colors.dart';
 import '../mold_scan/theme/mold_scan_theme.dart';
@@ -42,6 +43,19 @@ class _AuthGateState extends State<AuthGate> {
     super.initState();
     final s = AuthStore.session();
     if (s != null && _activationFor(s.$1) != null) _user = s.$1;
+    // Activation link from the administrator: activate with one tap.
+    final link = activationFromUrl(Uri.base);
+    if (link != null) {
+      // Out of the address bar and history, so it isn't shared by accident.
+      try {
+        web.window.history.replaceState(null, '', Uri.base.removeFragment().toString());
+      } catch (_) {}
+      if (_user == null && _device != null) {
+        _token.text = link;
+        _view = _View.activate;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _activate());
+      }
+    }
   }
 
   @override
@@ -72,7 +86,11 @@ class _AuthGateState extends State<AuthGate> {
       _error = null;
     });
     try {
-      final a = Activation.parse(_token.text);
+      // The whole link pasted also works.
+      final pasted = _token.text.trim();
+      final a = Activation.parse(
+        activationFromUrl(Uri.tryParse(pasted) ?? Uri()) ?? pasted,
+      );
       if (a == null) {
         _error = 'Isto não é uma ativação válida. Copie o texto inteiro que o administrador enviou (começa com MTA1).';
       } else if (!await AuthCrypto.isGenuine(a)) {
@@ -245,7 +263,7 @@ class _AuthGateState extends State<AuthGate> {
     const SizedBox(height: 8),
     const Text(
       'O acesso fica preso a um único aparelho. Envie o código abaixo ao administrador; ele vai '
-      'responder com uma ativação. Cole a ativação aqui.',
+      'responder com um link de ativação. Toque no link (ou cole a ativação aqui).',
       style: TextStyle(
         color: MoldScanColors.textSecondary,
         fontSize: 15,

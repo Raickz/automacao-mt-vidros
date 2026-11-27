@@ -106,30 +106,44 @@ class Activation {
       .replaceAll('=', '');
 }
 
-/// Letters and digits that can't be mistaken for each other when read out
-/// or typed (no 0/O, 1/I/L).
+/// Letters and digits of the old 12-character codes (no 0/O, 1/I/L). Devices
+/// activated with such a code keep it, so their activations stay valid.
 const _alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-/// A new random device code, e.g. "K7QD-9XMA-PW3R".
+/// A new random device code: 9 digits, e.g. "482-913-057", easy to read out
+/// over the phone and type on the administrator's page.
 String newDeviceCode([Random? random]) {
   final r = random ?? Random.secure();
-  final chars = [
-    for (var i = 0; i < 12; i++) _alphabet[r.nextInt(_alphabet.length)],
-  ];
-  return '${chars.sublist(0, 4).join()}-${chars.sublist(4, 8).join()}-${chars.sublist(8).join()}';
+  final d = [for (var i = 0; i < 9; i++) r.nextInt(10)].join();
+  return '${d.substring(0, 3)}-${d.substring(3, 6)}-${d.substring(6)}';
 }
 
-/// Upper case, no spaces, grouped by 4 — how codes are compared.
+/// Upper case, no spaces, grouped (3-3-3 digits, or 4-4-4 for old codes) —
+/// how codes are compared.
 String normalizeDeviceCode(String code) {
   final c = code.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  if (c.length == 9) {
+    return '${c.substring(0, 3)}-${c.substring(3, 6)}-${c.substring(6)}';
+  }
   if (c.length != 12) return c;
   return '${c.substring(0, 4)}-${c.substring(4, 8)}-${c.substring(8)}';
 }
 
 bool isValidDeviceCode(String code) {
   final c = normalizeDeviceCode(code);
-  return RegExp('^[$_alphabet]{4}-[$_alphabet]{4}-[$_alphabet]{4}\$')
-      .hasMatch(c);
+  return RegExp(r'^\d{3}-\d{3}-\d{3}$').hasMatch(c) ||
+      RegExp('^[$_alphabet]{4}-[$_alphabet]{4}-[$_alphabet]{4}\$').hasMatch(c);
+}
+
+/// The activation carried by a link like `.../#ativar=MTA1...` sent by the
+/// administrator, or null. A fragment never reaches the web server.
+String? activationFromUrl(Uri url) {
+  const key = 'ativar=';
+  final f = url.fragment;
+  final i = f.indexOf(key);
+  if (i < 0) return null;
+  final t = Uri.decodeComponent(f.substring(i + key.length));
+  return t.startsWith('${Activation.prefix}.') ? t : null;
 }
 
 /// Same user name, ignoring case and surrounding spaces.
