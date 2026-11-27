@@ -18,10 +18,13 @@ class DxfWriter {
   /// [comments] are written as DXF comment lines (code 999) at the top, so
   /// the project data typed by the worker (material, thickness, cutting
   /// instructions) travels inside the file. Comments are plain ASCII.
+  /// [padMm] moves the shape that far from the origin in X and Y, so the
+  /// origin is the corner of the order's glass rectangle around it.
   static String write(
     List<Point2D> points, {
     String layer = 'MOLDE',
     List<String> comments = const [],
+    double padMm = 0,
   }) {
     if (points.length < 3) {
       throw ArgumentError(
@@ -58,8 +61,8 @@ class DxfWriter {
     pair(0, 'SECTION');
     pair(2, 'ENTITIES');
 
-    String x(Point2D p) => (p.x - minX).toStringAsFixed(3);
-    String y(Point2D p) => (maxY - p.y).toStringAsFixed(3);
+    String x(Point2D p) => (p.x - minX + padMm).toStringAsFixed(3);
+    String y(Point2D p) => (maxY - p.y + padMm).toStringAsFixed(3);
     for (var i = 0; i < points.length; i++) {
       final a = points[i], b = points[(i + 1) % points.length];
       pair(0, 'LINE');
@@ -77,19 +80,21 @@ class DxfWriter {
   }
 
   /// File name carrying what the operator needs at a glance, e.g.
-  /// `Porta_01_vidro_4mm.dxf`.
+  /// `Pedido130918_Porta_01_vidro_4mm.dxf`.
   static String fileName({
     required String name,
+    String order = '',
     String material = '',
     double? thicknessMm,
   }) {
     final base = safeFileBase(name);
+    final ord = safeFileBase(order, maxLength: 20);
     final mat = safeFileBase(material, maxLength: 30).toLowerCase();
     final thickness =
         (thicknessMm != null && thicknessMm.isFinite && thicknessMm > 0)
         ? '${thicknessMm == thicknessMm.roundToDouble() ? thicknessMm.round() : thicknessMm}mm'
         : '';
-    return '${[base.isEmpty ? 'molde' : base, mat, thickness].where((p) => p.isNotEmpty).join('_')}.dxf';
+    return '${[if (ord.isNotEmpty) 'Pedido$ord', base.isEmpty ? 'molde' : base, mat, thickness].where((p) => p.isNotEmpty).join('_')}.dxf';
   }
 
   /// [s] reduced to a safe file-name piece: accents folded ("Área" ->

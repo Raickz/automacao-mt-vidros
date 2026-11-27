@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -142,8 +143,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
     // spares the pure-Dart decoder from 12-50MP originals.
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      maxWidth: 3200,
-      maxHeight: 3200,
+      maxWidth: 4096,
+      maxHeight: 4096,
       imageQuality: 95,
     );
     if (picked == null) return;
@@ -421,6 +422,8 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                         original: () =>
                             MoldOutline(_shown(_contour!)).normalized(),
                         initialName: _project.name.text.trim(),
+                        order: _project.order.text.trim(),
+                        slackMm: _project.slackMm,
                         material: _project.material.text.trim(),
                         instructions: _project.instructions.text.trim(),
                         fromScan: true,
@@ -706,6 +709,21 @@ class _MoldScanKitScreenState extends State<MoldScanKitScreen> {
                 contour: shown,
                 warnings: _warnings,
                 note: _resultNote(contour, shown),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          ListenableBuilder(
+            listenable: Listenable.merge([_project.thickness, _project.slack]),
+            builder: (context, _) {
+              final shown = _shown(contour);
+              final xs = shown.map((p) => p.x), ys = shown.map((p) => p.y);
+              return OrderRectBox(
+                widthMm: xs.reduce(max) - xs.reduce(min),
+                heightMm: ys.reduce(max) - ys.reduce(min),
+                slack: _project.slack,
+                slackMm: _project.slackMm,
+                onSlackChanged: (_) {},
               );
             },
           ),

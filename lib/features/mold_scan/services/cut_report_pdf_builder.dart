@@ -50,6 +50,7 @@ class CutReportPdfBuilder {
       ],
       ['Pontos do contorno', '${o.points.length}'],
       ['Curva', job.spline ? 'Spline (suave)' : 'Polilinha'],
+      if (job.order.isNotEmpty) ['Pedido (WGglass)', t(job.order)],
       ['Margem de corte', job.marginMm == 0 ? 'nenhuma' : mm(job.marginMm)],
       if (job.material.trim().isNotEmpty) ['Material', job.material.trim()],
       if (job.glassThicknessMm != null && job.glassThicknessMm! > 0)
@@ -200,7 +201,7 @@ class CutReportPdfBuilder {
     final o = outline.normalized();
     final doc = pw.Document(title: 'Etiqueta ${job.jobCode}');
     final qr =
-        'MT|${job.jobCode}|${t(job.name)}|${o.width.round()}x${o.height.round()}mm'
+        'MT|${job.jobCode}${job.order.isEmpty ? '' : '|P${t(job.order)}'}|${t(job.name)}|${o.width.round()}x${o.height.round()}mm'
         '${job.material.trim().isEmpty ? '' : '|${t(job.material.trim())}'}';
     doc.addPage(
       pw.Page(
@@ -261,7 +262,12 @@ class CutReportPdfBuilder {
                       style: const pw.TextStyle(fontSize: 9),
                     ),
                   pw.Spacer(),
-                  pw.Text(job.jobCode, style: const pw.TextStyle(fontSize: 8)),
+                  pw.Text(
+                    job.order.isEmpty
+                        ? job.jobCode
+                        : 'Pedido ${t(job.order)} - ${job.jobCode}',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
                   pw.Text(
                     job.dateText,
                     style: const pw.TextStyle(

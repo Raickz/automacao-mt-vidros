@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import '../../auth/auth_scope.dart';
+
 import '../services/homography.dart';
 import '../theme/mold_scan_colors.dart';
 import '../theme/mold_scan_theme.dart';
@@ -49,6 +51,36 @@ class MoldTopBar extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (AuthScope.maybeOf(context) case final AuthScope auth)
+          PopupMenuButton<String>(
+            tooltip: 'Conta',
+            icon: const Icon(
+              Icons.account_circle_outlined,
+              color: MoldScanColors.accentAlt,
+            ),
+            onSelected: (v) {
+              if (v == 'sair') auth.logout();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text(
+                  auth.userName,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'sair',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 18),
+                    SizedBox(width: 10),
+                    Text('Sair'),
+                  ],
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

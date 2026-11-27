@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'features/auth/auth_gate.dart';
 import 'features/mold_scan/screens/mold_scan_kit_screen.dart';
 import 'features/mold_scan/theme/mold_scan_theme.dart';
 
@@ -16,7 +17,7 @@ class MtVidrosApp extends StatelessWidget {
       title: 'MT Vidros',
       debugShowCheckedModeBanner: false,
       theme: MoldScanTheme.dark(),
-      home: const MoldScanKitScreen(),
+      home: const AuthGate(child: MoldScanKitScreen()),
     );
   }
 }

@@ -17,6 +17,7 @@ import '../services/svg_writer.dart';
 import '../services/web_download.dart';
 import '../theme/mold_scan_colors.dart';
 import '../theme/mold_scan_theme.dart';
+import 'project_form.dart';
 
 /// Where an outline sits inside a box of [size] with [pad] around it.
 ({double k, double dx, double dy}) fitOutline(
@@ -192,6 +193,8 @@ class MoldEditor extends StatefulWidget {
   final bool fromScan;
   final String material;
   final String instructions;
+  final String order;
+  final double slackMm;
 
   const MoldEditor({
     super.key,
@@ -204,6 +207,8 @@ class MoldEditor extends StatefulWidget {
     this.fromScan = false,
     this.material = '',
     this.instructions = '',
+    this.order = '',
+    this.slackMm = CutJob.defaultSlackMm,
   });
 
   @override
@@ -222,6 +227,12 @@ class _MoldEditorState extends State<MoldEditor> {
     text: widget.material,
   );
   final _glass = TextEditingController();
+  late final TextEditingController _order = TextEditingController(
+    text: widget.order,
+  );
+  late final TextEditingController _slack = TextEditingController(
+    text: _fmt(widget.slackMm),
+  );
   late final TextEditingController _instructions = TextEditingController(
     text: widget.instructions,
   );
@@ -261,6 +272,8 @@ class _MoldEditorState extends State<MoldEditor> {
       _name,
       _material,
       _glass,
+      _order,
+      _slack,
       _instructions,
       _priceM2,
       _priceM,
@@ -283,6 +296,11 @@ class _MoldEditorState extends State<MoldEditor> {
   static double? _num(TextEditingController c) => parseDecimal(c.text);
 
   double get _marginMm => _num(_margin) ?? 0;
+
+  double get _slackMm {
+    final s = _num(_slack);
+    return s == null || s < 0 || s > 1000 ? CutJob.defaultSlackMm : s;
+  }
 
   Quote get _quote => Quote(
     pricePerM2: _num(_priceM2) ?? 0,
@@ -339,6 +357,7 @@ class _MoldEditorState extends State<MoldEditor> {
 
   CutJob _job() => CutJob(
     name: _name.text.trim().isEmpty ? 'Molde' : _name.text.trim(),
+    order: _order.text.trim(),
     material: _material.text,
     glassThicknessMm: _num(_glass),
     instructions: _instructions.text,
@@ -349,8 +368,9 @@ class _MoldEditorState extends State<MoldEditor> {
 
   String get _fileBase {
     final n = DxfWriter.safeFileBase(_name.text);
+    final o = DxfWriter.safeFileBase(_order.text, maxLength: 20);
     final r = _result;
-    return '${n.isEmpty ? 'molde' : n}${r == null ? '' : '_${r.width.round()}x${r.height.round()}mm'}';
+    return '${o.isEmpty ? '' : 'Pedido${o}_'}${n.isEmpty ? 'molde' : n}${r == null ? '' : '_${r.width.round()}x${r.height.round()}mm'}';
   }
 
   void _dxf() {
@@ -360,9 +380,12 @@ class _MoldEditorState extends State<MoldEditor> {
     downloadBytes(
       DxfWriter.write(
         r.points,
+        padMm: _slackMm / 2,
         comments: [
+          if (j.order.isNotEmpty) 'Pedido: ${j.order}',
           'Projeto: ${j.name}',
           'Medida final: ${r.width.toStringAsFixed(1)} x ${r.height.toStringAsFixed(1)} mm',
+          ...orderRectComments(r.width, r.height, _slackMm),
           if (j.material.trim().isNotEmpty) 'Material: ${j.material.trim()}',
           if ((j.glassThicknessMm ?? 0) > 0)
             'Espessura: ${j.glassThicknessMm} mm',
@@ -593,6 +616,8 @@ class _MoldEditorState extends State<MoldEditor> {
           ),
           onChanged: (_) => setState(() {}),
         ),
+        const SizedBox(height: 12),
+        OrderField(controller: _order, onChanged: (_) => setState(() {})),
         _section('Medida final', [
           Row(
             children: [
@@ -766,6 +791,16 @@ class _MoldEditorState extends State<MoldEditor> {
               onChanged: (_) => _changed(),
             ),
           ),
+          if (r != null) ...[
+            const SizedBox(height: 16),
+            OrderRectBox(
+              widthMm: r.width,
+              heightMm: r.height,
+              slack: _slack,
+              slackMm: _slackMm,
+              onSlackChanged: (_) => setState(() {}),
+            ),
+          ],
         ]),
         _section('Dados do projeto', [
           Row(

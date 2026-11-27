@@ -33,9 +33,10 @@ class BoardGeometry {
       MoldBoardSpec.markerMarginMm + MoldBoardSpec.markerSizeMm / 2;
 
   /// Largest board area accepted. At 1 px/mm the photo is flattened into one
-  /// pixel per mm², and the buffers needed grow with the area: 8 m² (4 x 2 m)
-  /// stays well inside a phone browser's memory, 64 m² does not.
-  static const maxAreaMm2 = 8e6;
+  /// pixel per mm², and the buffers needed grow with the area: 12 m² (molds
+  /// up to 3 m on a 3.4 x 2 m floor area, with room to spare) stays inside a
+  /// phone browser's memory, 64 m² does not.
+  static const maxAreaMm2 = 12e6;
 
   /// Marker centers must be far enough apart for the perspective math to be
   /// meaningful, and the board small enough to process.
@@ -82,9 +83,9 @@ class BoardGeometry {
   static const spanHint =
       'Informe as duas distâncias entre os marcadores, em cm, medidas com a trena de fora a fora dos '
       'quadrados pretos: da borda de fora de um quadrado preto até a borda de fora do outro (não da folha). '
-      'Cada uma com 50 cm ou mais, e o quadro todo no máximo 8 m².';
+      'Cada uma com 50 cm ou mais, e o quadro todo no máximo 12 m².';
 
   static const sizeHint =
       'Informe a largura e a altura reais do quadro, em cm: cada lado a partir de 60 cm '
-      'e a área de até 8 m² (por exemplo, 400 × 200 cm).';
+      'e a área de até 12 m² (por exemplo, 400 × 300 cm).';
 }
