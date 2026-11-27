@@ -36,6 +36,7 @@ dependencies:
   share_plus: ^13.3.0
   vector_math: ^2.4.3
   web: ^1.1.1
+  crypto: ^3.0.8
   camera: ^0.12.1
   image: ^4.10.1
   zxing2: ^0.2.4
