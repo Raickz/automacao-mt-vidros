@@ -47,17 +47,35 @@ void main() {
     }
   });
 
-  test('código do aparelho: 12 letras e números sem ambíguos, agrupados de 4', () {
+  test('código do aparelho: 9 dígitos agrupados de 3; códigos antigos seguem válidos', () {
     final r = Random(1);
     for (var i = 0; i < 200; i++) {
       final c = newDeviceCode(r);
       expect(isValidDeviceCode(c), isTrue, reason: c);
-      expect(c, matches(RegExp(r'^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$')));
-      expect(c, isNot(matches(RegExp('[01OIL]'))));
+      expect(c, matches(RegExp(r'^\d{3}-\d{3}-\d{3}$')));
     }
+    expect(normalizeDeviceCode('482 913057'), '482-913-057');
+    expect(isValidDeviceCode('482-913-05'), isFalse);
+    // Old 12-character codes (phones activated before) still work.
     expect(normalizeDeviceCode('k7qd 9xma pw3r'), 'K7QD-9XMA-PW3R');
+    expect(isValidDeviceCode('K7QD-9XMA-PW3R'), isTrue);
     expect(isValidDeviceCode('K7QD-9XMA-PW3'), isFalse);
     expect(isValidDeviceCode('K0QD-9XMA-PW3R'), isFalse);
+  });
+
+  test('link de ativação: lê o token do fragmento #ativar=', () {
+    final t = _token(_payload());
+    expect(
+      activationFromUrl(
+        Uri.parse('https://raickz.github.io/automacao-mt-vidros/#ativar=$t'),
+      ),
+      t,
+    );
+    expect(activationFromUrl(Uri.parse('https://x.io/app/')), isNull);
+    expect(activationFromUrl(Uri.parse('https://x.io/#ativar=lixo')), isNull);
+    expect(Activation.parse(activationFromUrl(
+      Uri.parse('https://x.io/#ativar=$t'),
+    )!), isNotNull);
   });
 
   test('usuário ignora maiúsculas e espaços; hashes comparados por inteiro', () {
