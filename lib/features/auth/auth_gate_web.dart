@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:web/web.dart' as web;
@@ -33,6 +35,8 @@ class _AuthGateState extends State<AuthGate> {
   final _token = TextEditingController();
   final _userField = TextEditingController();
   final _password = TextEditingController();
+  final _name = TextEditingController();
+  final _newPassword = TextEditingController();
   bool _busy = false;
   bool _showPassword = false;
   String? _error;
@@ -63,6 +67,8 @@ class _AuthGateState extends State<AuthGate> {
     _token.dispose();
     _userField.dispose();
     _password.dispose();
+    _name.dispose();
+    _newPassword.dispose();
     super.dispose();
   }
 
@@ -86,6 +92,11 @@ class _AuthGateState extends State<AuthGate> {
       _error = null;
     });
     try {
+      final digits = nineDigits(_token.text);
+      if (digits != null) {
+        await _activateWithNumber(digits);
+        return;
+      }
       // The whole link pasted also works.
       final pasted = _token.text.trim();
       final a = Activation.parse(
@@ -113,6 +124,59 @@ class _AuthGateState extends State<AuthGate> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Activation by the 9 digits the administrator gave for THIS device: the
+  /// employee also picks the name to log in with and a password.
+  Future<void> _activateWithNumber(String digits) async {
+    final locked = AuthStore.lockedUntil();
+    if (locked != null) {
+      final s = locked.difference(DateTime.now()).inSeconds + 1;
+      _error = 'Muitas tentativas erradas. Tente de novo em $s s.';
+      return;
+    }
+    if (!AuthCrypto.hasCodeKey) {
+      _error = 'Esta versão do app não aceita ativação por número. Use o link ou o texto de ativação.';
+      return;
+    }
+    final name = _name.text.trim();
+    final pass = _newPassword.text;
+    if (name.isEmpty || pass.length < 6) {
+      _error = 'Escreva seu nome e crie uma senha de pelo menos 6 caracteres.';
+      return;
+    }
+    final now = DateTime.now();
+    final days = daysForCode(AuthCrypto.codeKey, _device!, digits, now);
+    if (days == null) {
+      AuthStore.recordFailure();
+      _error = 'Número incorreto para este aparelho. Confira os 9 números e o código do aparelho enviado ao administrador.';
+      return;
+    }
+    final rnd = Random.secure();
+    final salt = Uint8List.fromList([for (var i = 0; i < 16; i++) rnd.nextInt(256)]);
+    const iterations = 210000;
+    final hash = await AuthCrypto.hashPassword(pass, salt, iterations);
+    final token = sealLocalActivation(AuthCrypto.codeKey, {
+      'v': 1,
+      'u': name,
+      'n': name,
+      'd': _device,
+      's': Activation.b64e(salt),
+      'h': Activation.b64e(hash),
+      'i': iterations,
+      'x': now.add(Duration(days: days)).millisecondsSinceEpoch,
+      't': now.millisecondsSinceEpoch,
+    });
+    final a = Activation.parse(token);
+    if (a == null || !AuthStore.addActivation(a)) {
+      _error = 'O navegador não deixou guardar a ativação (janela privada?).';
+      return;
+    }
+    AuthStore.startSession(a.user);
+    _token.clear();
+    _newPassword.clear();
+    _user = a.user;
+    _info = null;
   }
 
   Future<void> _login() async {
@@ -263,7 +327,7 @@ class _AuthGateState extends State<AuthGate> {
     const SizedBox(height: 8),
     const Text(
       'O acesso fica preso a um único aparelho. Envie o código abaixo ao administrador; ele vai '
-      'responder com um link de ativação. Toque no link (ou cole a ativação aqui).',
+      'responder com 9 números ou com um link de ativação. Digite os números aqui (ou toque no link).',
       style: TextStyle(
         color: MoldScanColors.textSecondary,
         fontSize: 15,
@@ -275,15 +339,42 @@ class _AuthGateState extends State<AuthGate> {
     const SizedBox(height: 16),
     TextField(
       controller: _token,
-      minLines: 3,
+      minLines: 1,
       maxLines: 5,
       autocorrect: false,
       enableSuggestions: false,
+      onChanged: (_) => setState(() {}),
       decoration: const InputDecoration(
-        labelText: 'Ativação',
-        hintText: 'MTA1.…',
+        labelText: 'Ativação (9 números ou texto)',
+        hintText: '000 000 000',
       ),
     ),
+    if (nineDigits(_token.text) != null) ...[
+      const SizedBox(height: 12),
+      TextField(
+        controller: _name,
+        autocorrect: false,
+        autofillHints: const [AutofillHints.username],
+        textInputAction: TextInputAction.next,
+        decoration: const InputDecoration(
+          labelText: 'Seu nome (para entrar)',
+          prefixIcon: Icon(Icons.person_outline),
+        ),
+      ),
+      const SizedBox(height: 12),
+      TextField(
+        controller: _newPassword,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        autofillHints: const [AutofillHints.newPassword],
+        onSubmitted: (_) => _busy ? null : _activate(),
+        decoration: const InputDecoration(
+          labelText: 'Crie uma senha (mín. 6)',
+          prefixIcon: Icon(Icons.lock_outline),
+        ),
+      ),
+    ],
     const SizedBox(height: 14),
     if (_error != null) ...[
       _Message(color: MoldScanColors.danger, text: _error!),

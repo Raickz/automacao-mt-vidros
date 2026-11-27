@@ -47,16 +47,18 @@ void main() {
     }
   });
 
-  test('código do aparelho: 9 dígitos agrupados de 3; códigos antigos seguem válidos', () {
+  test('código do aparelho: 12 letras e números sem ambíguos; o de 9 dígitos antigo segue válido', () {
     final r = Random(1);
     for (var i = 0; i < 200; i++) {
       final c = newDeviceCode(r);
       expect(isValidDeviceCode(c), isTrue, reason: c);
-      expect(c, matches(RegExp(r'^\d{3}-\d{3}-\d{3}$')));
+      expect(c, matches(RegExp(r'^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$')));
+      expect(c, isNot(matches(RegExp('[01OIL]'))));
     }
+    // 9-digit device codes made by the previous version still work.
     expect(normalizeDeviceCode('482 913057'), '482-913-057');
+    expect(isValidDeviceCode('482-913-057'), isTrue);
     expect(isValidDeviceCode('482-913-05'), isFalse);
-    // Old 12-character codes (phones activated before) still work.
     expect(normalizeDeviceCode('k7qd 9xma pw3r'), 'K7QD-9XMA-PW3R');
     expect(isValidDeviceCode('K7QD-9XMA-PW3R'), isTrue);
     expect(isValidDeviceCode('K7QD-9XMA-PW3'), isFalse);
@@ -76,6 +78,62 @@ void main() {
     expect(Activation.parse(activationFromUrl(
       Uri.parse('https://x.io/#ativar=$t'),
     )!), isNotNull);
+  });
+
+  group('ativação por 9 números', () {
+    final key = utf8.encode('chave-de-teste');
+    const device = 'K7QD-9XMA-PW3R';
+    final now = DateTime(2026, 11, 27);
+
+    test('número tem 9 dígitos e depende do aparelho, da validade e do mês', () {
+      final c = activationCode(key, device, 90, now);
+      expect(c, matches(RegExp(r'^\d{9}$')));
+      expect(activationCode(key, device, 90, DateTime(2026, 11, 3)), c);
+      expect(activationCode(key, 'AAAA-BBBB-CCCC', 90, now), isNot(c));
+      expect(activationCode(key, device, 30, now), isNot(c));
+      expect(activationCode(key, device, 90, DateTime(2026, 12, 1)), isNot(c));
+      expect(activationCode(utf8.encode('outra'), device, 90, now), isNot(c));
+    });
+
+    test('app confere o número: vale no mês e no mês seguinte, não depois', () {
+      for (final d in codeDurations) {
+        final c = activationCode(key, device, d, now);
+        expect(daysForCode(key, device, c, now), d);
+        expect(daysForCode(key, device, c, DateTime(2026, 12, 20)), d);
+        expect(daysForCode(key, device, c, DateTime(2027, 1, 2)), isNull);
+        expect(daysForCode(key, 'AAAA-BBBB-CCCC', c, now), isNull);
+      }
+      expect(daysForCode(key, device, '000000000', now), isNull);
+      expect(daysForCode(const [], device, '123456789', now), isNull);
+    });
+
+    test('lê 9 números com espaços e traços', () {
+      expect(nineDigits('482 913 057'), '482913057');
+      expect(nineDigits('482-913-057'), '482913057');
+      expect(nineDigits('48291305'), isNull);
+      expect(nineDigits('4829130571'), isNull);
+      expect(nineDigits('MTA1.abc'), isNull);
+    });
+
+    test('ativação local: lacrada com a chave, não aceita edição', () {
+      final p = _payload(device: device);
+      final t = sealLocalActivation(key, p);
+      final a = Activation.parse(t)!;
+      expect(a.local, isTrue);
+      expect(a.user, 'joao');
+      expect(localSealOk(a, key), isTrue);
+      expect(localSealOk(a, utf8.encode('outra')), isFalse);
+      // Changing the expiry invalidates the seal.
+      final edited = Activation.parse(
+        sealLocalActivation(key, {...p, 'x': 1}).replaceFirst(
+          RegExp(r'\.[^.]+$'),
+          '.${t.split('.')[2]}',
+        ),
+      )!;
+      expect(localSealOk(edited, key), isFalse);
+      // A signed (non-local) activation is never "sealed".
+      expect(localSealOk(Activation.parse(_token(_payload()))!, key), isFalse);
+    });
   });
 
   test('usuário ignora maiúsculas e espaços; hashes comparados por inteiro', () {

@@ -39,7 +39,11 @@ jobs:
 
       # --no-web-resources-cdn: o CanvasKit vai junto no site, sem baixar do
       # CDN do Google (funciona offline como PWA e não depende de terceiros).
-      - run: flutter build web --base-href /automacao-mt-vidros/ --no-web-resources-cdn
+      # ACTIVATION_KEY (secret do GitHub) liga a ativação por 9 números; sem ela
+      # o app só aceita a ativação assinada.
+      - run: flutter build web --base-href /automacao-mt-vidros/ --no-web-resources-cdn --dart-define=ACTIVATION_KEY="$ACTIVATION_KEY"
+        env:
+          ACTIVATION_KEY: ${{ secrets.ACTIVATION_KEY }}
 
       # Versão do cache do app (commit) e do motor gráfico (revisão do Flutter)
       # no service worker: o celular só baixa de novo o que mudou.
