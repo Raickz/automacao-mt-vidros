@@ -130,8 +130,10 @@ void dropSlivers(Uint8List mask, int w, int h, int r, {int edgeZone = 0}) {
 Uint8List fillEnclosed(Uint8List mask, int w, int h, int maxGap) {
   final out = Uint8List.fromList(mask);
   final big = maxGap + 1;
-  final left = Int32List(w * h), right = Int32List(w * h);
-  final up = Int32List(w * h), down = Int32List(w * h);
+  // 16-bit: distances only matter up to maxGap + 1, and four 32-bit maps of a
+  // 3 x 2 m board would take over 100 MB on a phone.
+  final left = Uint16List(w * h), right = Uint16List(w * h);
+  final up = Uint16List(w * h), down = Uint16List(w * h);
   for (var y = 0; y < h; y++) {
     var d = big;
     for (var x = 0; x < w; x++) {

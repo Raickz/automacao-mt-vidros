@@ -8,6 +8,29 @@ Roda como site (GitHub Pages, upload de foto), instalável na tela inicial como 
 Compartilhar → "Adicionar à Tela de Início"; no Android, menu do Chrome → "Instalar app". O código do app
 Android (câmera ao vivo) continua no repositório, mas não é mais mantido; o workflow do APK é só manual.
 
+## Acesso (um aparelho por usuário)
+
+Exigência temporária da empresa: cada usuário só entra no aparelho em que foi ativado.
+
+1. Na primeira abertura o app mostra **"Ativar este aparelho"** com um código (ex.: `K7QD-9XMA-PW3R`).
+   O funcionário manda esse código ao administrador.
+2. O administrador abre `gerar_ativacao.html` no computador dele (fora deste repositório, porque guarda a
+   chave privada; nunca envie nem publique esse arquivo), digita código, nome, usuário, senha e validade, e
+   manda a ativação gerada (texto que começa com `MTA1.`). A senha vai pessoalmente.
+3. O funcionário cola a ativação e entra com usuário e senha. O login dura 12 h; depois de 5 senhas erradas
+   o app espera cada vez mais (30 s até 15 min).
+
+A ativação é assinada (ECDSA P-256) e só vale no aparelho do código. Funciona sem servidor e sem internet.
+Para tirar o acesso antes do prazo, apague os dados do site no aparelho: ele ganha um código novo. Não é à
+prova de quem altera o código do app; serve para impedir o uso em outro celular ou PC.
+
+## Pedido e retângulo (WGglass / eCutter)
+
+Digite o **Nº do pedido (WGglass)**. Ele vai no nome do arquivo (`Pedido130918_...dxf`), no DXF, no
+relatório e na etiqueta. O app mostra o **retângulo para o pedido**: a medida do molde + **100 mm** (5 cm
+em cada lado; a folga pode ser mudada). Esse retângulo é o que entra no WGglass, e o eCutter encaixa
+na chapa. No DXF a origem 0,0 é o canto desse retângulo, então o molde cai dentro da reserva na mesa.
+
 ## Como usar
 
 1. **Marcadores.** Gere o PDF dos 4 marcadores no app ("Baixar marcadores em PDF"). Imprima em A4, a
@@ -30,6 +53,7 @@ Android (câmera ao vivo) continua no repositório, mas não é mais mantido; o 
 4. **Resultado.** Confira a linha rosa na prévia (ela deve acompanhar a borda externa do molde) e as
    medidas. Informe a **espessura do molde**: o topo de um molde grosso fica mais perto da câmera que o
    quadro e aparece maior (uma porta de 35 mm a 2,6 m aparece 2 cm maior). O app desconta isso. Baixe o DXF.
+   Moldes de até 3 m cabem numa área de até 12 m² entre os QR (ex.: 3,4 × 2,0 m); use a foto de 12 MP inteira.
    Material, espessura e instruções de corte vão como comentários dentro do DXF e no nome do arquivo.
 
 Se o app não achar os 4 marcadores, use **"Marcar os 4 marcadores à mão"**: arraste os pontos 1 a 4 para o

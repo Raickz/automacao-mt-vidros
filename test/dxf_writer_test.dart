@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mt_vidros_app/features/mold_scan/services/cut_job.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/dxf_writer.dart';
 import 'package:mt_vidros_app/features/mold_scan/services/homography.dart';
 
@@ -163,5 +164,23 @@ void main() {
     expect(name, startsWith('etc_passwd_Area_x'));
     expect(DxfWriter.safeFileBase('Área de serviço'), 'Area_de_servico');
     expect(DxfWriter.safeFileBase('...'), '');
+  });
+
+  test('pedido: retângulo com folga de 10 cm e origem no canto dele', () {
+    expect(CutJob.orderRect(1430, 1980.2, CutJob.defaultSlackMm), (1530, 2081));
+    expect(CutJob.orderRect(1430, 1980, 100), (1530, 2080));
+    final dxf = DxfWriter.write(const [
+      Point2D(10, 10),
+      Point2D(110, 10),
+      Point2D(110, 60),
+    ], padMm: 50);
+    final xs = RegExp(r'\n10\n([\d.]+)').allMatches(dxf).map((m) => double.parse(m[1]!));
+    final ys = RegExp(r'\n20\n([\d.]+)').allMatches(dxf).map((m) => double.parse(m[1]!));
+    expect(xs.reduce((a, b) => a < b ? a : b), 50);
+    expect(ys.reduce((a, b) => a < b ? a : b), 50);
+    expect(
+      DxfWriter.fileName(name: 'Espelho', order: '130918', thicknessMm: 4),
+      'Pedido130918_Espelho_4mm.dxf',
+    );
   });
 }

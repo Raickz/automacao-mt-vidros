@@ -58,9 +58,10 @@ class MoldScanPipeline {
   // about 1mm contour resolution, plenty for glass cutting, and still fast.
   static const pixelsPerMm = 1.0;
   static const simplifyToleranceMm = 0.8;
-  // Photos larger than this are downscaled first: a 2.5m board at 3200px is
-  // still >1px/mm, and 12-50MP decodes/rectifies far too slowly in Dart.
-  static const maxPhotoSide = 3200;
+  // Photos larger than this are downscaled first. 4096 keeps a phone's 12 MP
+  // photo whole: a 3.4 m floor area then still gets ~1 px/mm, needed for
+  // molds up to 3 m; 48 MP originals would decode far too slowly in Dart.
+  static const maxPhotoSide = 4096;
   // Outside the marker papers is not board: wall, floor, a table. The cut
   // papers reach 100mm out from each marker center and the virtual board edge
   // is 150mm out, so ignoring the outer 50mm stops exactly at the paper edge.
